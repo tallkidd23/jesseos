@@ -1,3 +1,6 @@
+# readmepro - install lamas
+
+
 # 1. Update system packages (optional but good practice)
 brew update || echo "Homebrew not needed"
 
