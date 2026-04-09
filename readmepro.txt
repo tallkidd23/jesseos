@@ -1,5 +1,7 @@
 # readmepro - install lamas
 
+# Futurenoding
+
 
 # 1. Update system packages (optional but good practice)
 brew update || echo "Homebrew not needed"
