@@ -1,14 +1,21 @@
 :root {
-  color-scheme: dark;
-  --bg: #020702;
-  --panel: #031006;
-  --ink: #6cff70;
-  --ink-dim: #2fae3b;
-  --line: #24df3e;
-  --glow: rgba(65, 255, 89, 0.52);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --ink: #68ff77;
+  --ink-dim: #32b744;
+  --glow-core: rgba(118, 255, 133, 0.70);
+  --glow-halo: rgba(40, 255, 75, 0.20);
 }
 
+body {
+  text-shadow:
+    0 0 2px var(--glow-core),
+    0 0 7px var(--glow-halo);
+}
+
+#input {
+  text-shadow:
+    0 0 2px var(--glow-core),
+    0 0 7px var(--glow-halo);
+}
 * {
   box-sizing: border-box;
 }
@@ -22,11 +29,10 @@ body {
   background: #000;
 }
 
-body {
-  min-height: 100%;
-  color: var(--ink);
-  font-family: "Courier New", Courier, monospace;
-  text-shadow: 0 0 6px var(--glow);
+@font-face {
+  font-family: "JesseOS C64";
+  src: url("./assets/fonts/C64ProMono.woff2") format("woff2");
+  font-display: swap;
 }
 
 .terminal-shell {
@@ -77,22 +83,18 @@ body {
 
 #transcript,
 .transcript {
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: 0;
-  height: 0;
-  overflow-x: hidden;
-  overflow-y: scroll;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-  touch-action: pan-y;
-  padding: 1.25rem 1.5rem 2rem;
-  scrollbar-color: var(--ink-dim) var(--bg);
-  font-size: clamp(1rem, 4.25vw, 1.18rem);
-  line-height: 1.55;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  font-size: clamp(1.15rem, 4.8vw, 1.45rem);
+  line-height: 1.62;
+  letter-spacing: 0.035em;
+}
+
+.input-row {
+  font-size: clamp(1.05rem, 4.5vw, 1.3rem);
+}
+
+.terminal-header {
+  font-size: clamp(1.05rem, 4vw, 1.55rem);
+  letter-spacing: 0.16em;
 }
 
 #transcript > * {
