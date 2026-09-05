@@ -1,4 +1,4 @@
-// jesseos v0.3 - Deep Engine (Commit 2/3)
+// jesseos v0.3 - Complete (Presence + Deep Engine + Empathy)
 
 // === CONFIG ===
 const CONFIG = {
@@ -50,7 +50,6 @@ class DeepEngine {
     this.noveltyGuard = CONFIG.engine.noveltyGuard;
     this.model = {};
   }
-
   train(corpus) {
     this.model = {};
     for (let i = 0; i <= corpus.length - this.order; i++) {
@@ -60,7 +59,6 @@ class DeepEngine {
       this.model[state].push(next);
     }
   }
-
   generate(seed, length = 50) {
     let state = seed.split(' ');
     let output = [...state];
@@ -72,7 +70,6 @@ class DeepEngine {
     }
     return output.join(' ');
   }
-
   applyMotifs(text) {
     if (!this.motifs) return text;
     const motifs = ['echo', 'spiral', 'mirror'];
@@ -82,14 +79,12 @@ class DeepEngine {
     if (m === 'mirror') return text + ' | ' + text;
     return text;
   }
-
   transformMemory(input) {
     if (!CONFIG.engine.memoryTransforms) return input;
     this.memory.push(input);
     if (this.memory.length > 10) this.memory.shift();
     return input.toLowerCase().replace(/\b(i|me|my)\b/g, 'we');
   }
-
   checkNovelty(text) {
     if (!this.noveltyGuard) return true;
     const seen = this.memory.some(m => m.includes(text));
@@ -97,7 +92,7 @@ class DeepEngine {
   }
 }
 
-// === EMPATHY LAYER (stub for Commit 3/3) ===
+// === EMPATHY LAYER ===
 class EmpathyLayer {
   constructor() {
     this.toneDirector = CONFIG.empathy.toneDirector;
@@ -106,9 +101,33 @@ class EmpathyLayer {
     this.safetyOverride = CONFIG.empathy.safetyOverride;
     this.climateCommands = CONFIG.empathy.climateCommands;
   }
-  adjustTone(text, mood) { return text; }
-  safetyFilter(text) { return text; }
-  climateCommand(cmd) { return ''; }
+  adjustTone(text, mood = 'neutral') {
+    if (!this.toneDirector) return text;
+    const tones = {
+      practical: { prefix: '→ ', suffix: ' [actionable]' },
+      gentle: { prefix: '💛 ', suffix: ' [soft]' },
+      neutral: { prefix: '', suffix: '' }
+    };
+    const t = tones[mood] || tones.neutral;
+    return t.prefix + text + t.suffix;
+  }
+  safetyFilter(text) {
+    if (!this.safetyOverride) return text;
+    const blocked = ['harm', 'danger', 'illegal'];
+    if (blocked.some(b => text.toLowerCase().includes(b))) {
+      return 'I care about your safety. Let\'s find a constructive path.';
+    }
+    return text;
+  }
+  climateCommand(cmd) {
+    if (!this.climateCommands) return '';
+    const cmds = {
+      'climate warm': '🌡️ Temperature increased',
+      'climate cool': '❄️ Temperature decreased',
+      'climate reset': '🔄 Climate reset to default'
+    };
+    return cmds[cmd] || 'Unknown climate command';
+  }
 }
 
 // === MAIN ===
