@@ -9,36 +9,50 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
-html, body {
+html,
+body {
   width: 100%;
+  height: 100%;
   min-height: 100%;
   margin: 0;
+  overflow: hidden;
   background: #000;
 }
 
 body {
+  height: 100dvh;
   min-height: 100dvh;
-  overflow: hidden;
   color: var(--ink);
   font-family: "Courier New", Courier, monospace;
   text-shadow: 0 0 6px var(--glow);
 }
-
 .terminal-shell {
-  position: relative;
+  position: fixed;
+  inset: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: 100%;
-  min-height: 100dvh;
+  height: 100dvh;
+  min-height: 0;
   overflow: hidden;
   border: 2px solid var(--line);
   background:
     radial-gradient(ellipse at center, rgba(14, 74, 20, 0.25), transparent 66%),
-    repeating-linear-gradient(to bottom, rgba(255,255,255,0.025) 0, rgba(255,255,255,0.025) 1px, transparent 2px, transparent 5px),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.025) 0,
+      rgba(255, 255, 255, 0.025) 1px,
+      transparent 2px,
+      transparent 5px
+    ),
     var(--bg);
-  box-shadow: inset 0 0 48px rgba(0, 255, 60, 0.12), 0 0 20px rgba(0, 255, 60, 0.25);
+  box-shadow:
+    inset 0 0 48px rgba(0, 255, 60, 0.12),
+    0 0 20px rgba(0, 255, 60, 0.25);
 }
 
 .terminal-header {
@@ -56,16 +70,20 @@ body {
 
 .transcript {
   min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   padding: 1.25rem 1.5rem;
+  padding-bottom: 2rem;
   scrollbar-color: var(--ink-dim) var(--bg);
   font-size: clamp(1rem, 4.25vw, 1.18rem);
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
 }
-
 .system-line { color: var(--ink-dim); margin-bottom: 0.75rem; }
 .user-line { color: #adffb0; margin-top: 1rem; }
 .response-line { color: var(--ink); margin-top: 0.45rem; }
