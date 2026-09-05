@@ -1,530 +1,480 @@
-const output = document.getElementById('output');
-const input = document.getElementById('input');
-const inputLine = document.getElementById('input-line');
-const typingStatus = document.getElementById('typing-status');
+// JesseOS v0.4 - Free-association dream engine
+// Local-only, no network calls, no tracking, no secrets
 
-const DB_NAME = 'jesseos-memory-v3';
-const DB_VERSION = 1;
-const EXCHANGE_STORE = 'exchanges';
-const PREFS_KEY = 'jesseos_preferences_v3';
-const MAX_VISIBLE_RECALL = 8;
-const MAX_RESPONSE_WORDS = 42;
-const seedCorpus = Array.isArray(window.JESSEOS_CORPUS) ? window.JESSEOS_CORPUS : [];
+// ============ Configuration ============
+const CONFIG = {
+  CORPUS_SIZE_TARGET: 150,
+  MEMORY_EXCHANGE_LIMIT: 80,
+  MAX_RESPONSE_SENTENCES: 4,
+  MIN_RESPONSE_SENTENCES: 2,
+  ASSOCIATIVE_JUMP_PROBABILITY: 0.10,
+  TYPE_DELAY_MIN: 20,
+  TYPE_DELAY_MAX: 50,
+  PUNCTUATION_PAUSE_BASE: 80,
+  PUNCTUATION_PAUSE_END: 150,
+  BACKSPACE_PROBABILITY: 0.02,
+};
 
-let db;
-let exchanges = [];
-let preferences = loadPreferences();
-let activeTyping = null;
-let busy = false;
+// ============ DOM Elements ============
+let transcriptEl, inputEl, sendBtn, statusEl, cursorEl;
 
-function loadPreferences() {
-  try {
-    return JSON.parse(localStorage.getItem(PREFS_KEY)) || { displayName: 'visitor', allowDreamCopies: true, booted: false };
-  } catch {
-    return { displayName: 'visitor', allowDreamCopies: true, booted: false };
+// ============ State ============
+let markov1 = {}; // 1-gram
+let markov2 = {}; // 2-gram
+let markov3 = {}; // 3-gram
+let isGenerating = false;
+let pauseResumeState = { paused: false, resumeAfter: null };
+
+// ============ Utilities ============
+function tokenize(text) {
+  return text.toLowerCase().replace(/[^a-z0-9\s\'\-]/g, '').split(/\s+/).filter(w => w.length > 0);
+}
+
+function extractKeywords(text) {
+  const stopwords = new Set(['i','am','a','an','the','is','are','was','were','be','been','being','have','has','had','do','does','did','will','would','could','should','may','might','must','shall','can','need','to','of','in','for','on','with','at','by','from','as','into','through','during','before','after','above','below','between','under','again','further','then','once','here','there','when','where','why','how','all','each','few','more','most','other','some','such','no','nor','not','only','own','same','so','than','too','very','just','also','now','and','but','or','if','because','until','while','although','though','since','unless','lest','whether','what','which','who','whom','whose','this','that','these','those','it','its','my','your','his','her','their','our','we','you','he','she','they','them','me','him','us']);
+  return tokenize(text).filter(w => !stopwords.has(w) && w.length > 2);
+}
+
+function sentenceSplit(text) {
+  return text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+}
+
+function pickRandom(arr) {
+  if (!arr || arr.length === 0) return null;
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function pickWeighted(transitions) {
+  if (!transitions || transitions.length === 0) return null;
+  const total = transitions.reduce((sum, t) => sum + (t.weight || 1), 0);
+  let r = Math.random() * total;
+  for (const t of transitions) {
+    r -= (t.weight || 1);
+    if (r <= 0) return t.word || t;
+  }
+  return transitions[transitions.length - 1].word || transitions[transitions.length - 1];
+}
+
+// ============ Markov Training ============
+function trainMultiOrder(corpus) {
+  markov1 = {};
+  markov2 = {};
+  markov3 = {};
+  
+  for (const sentence of corpus) {
+    const tokens = tokenize(sentence);
+    if (tokens.length === 0) continue;
+    
+    // 1-gram
+    for (const token of tokens) {
+      if (!markov1[token]) markov1[token] = [];
+      markov1[token].push(token);
+    }
+    
+    // 2-gram and 3-gram
+    for (let i = 0; i < tokens.length; i++) {
+      // 2-gram: state = tokens[i], next = tokens[i+1]
+      if (i + 1 < tokens.length) {
+        const state2 = tokens[i];
+        const next = tokens[i + 1];
+        if (!markov2[state2]) markov2[state2] = [];
+        markov2[state2].push(next);
+      }
+      
+      // 3-gram: state = tokens[i] + tokens[i+1], next = tokens[i+2]
+      if (i + 2 < tokens.length) {
+        const state3 = tokens[i] + ' ' + tokens[i + 1];
+        const next = tokens[i + 2];
+        if (!markov3[state3]) markov3[state3] = [];
+        markov3[state3].push(next);
+      }
+    }
   }
 }
 
-function savePreferences() {
-  localStorage.setItem(PREFS_KEY, JSON.stringify(preferences));
+// ============ Generation ============
+function generatePromptSeeded(prompt, mode = 'neutral') {
+  const keywords = extractKeywords(prompt);
+  const allTokens = Object.keys(markov1);
+  
+  if (allTokens.length === 0) {
+    return "i am still learning, please talk to me more";
+  }
+  
+  // Try to start from a keyword
+  let startToken = null;
+  if (keywords.length > 0) {
+    for (const kw of keywords) {
+      if (markov2[kw] && markov2[kw].length > 0) {
+        startToken = kw;
+        break;
+      }
+    }
+  }
+  
+  // Fallback: pick random token that has 2-gram transitions
+  if (!startToken) {
+    const candidates = Object.keys(markov2).filter(k => markov2[k] && markov2[k].length > 0);
+    startToken = pickRandom(candidates) || pickRandom(allTokens);
+  }
+  
+  if (!startToken) {
+    return "i am dreaming quietly today";
+  }
+  
+  let currentToken = startToken;
+  let sentence = currentToken.charAt(0).toUpperCase() + currentToken.slice(1);
+  let sentenceCount = 0;
+  let wordsSincePunctuation = 0;
+  
+  while (sentenceCount < CONFIG.MAX_RESPONSE_SENTENCES) {
+    // Associative jump
+    if (Math.random() < CONFIG.ASSOCIATIVE_JUMP_PROBABILITY && keywords.length > 0) {
+      const jumpKeyword = pickRandom(keywords);
+      if (markov2[jumpKeyword] && markov2[jumpKeyword].length > 0) {
+        currentToken = jumpKeyword;
+      }
+    }
+    
+    // Try 3-gram first (need previous token too)
+    let nextWord = null;
+    
+    // We need to track previous token for 3-gram, but for simplicity use 2-gram with 3-gram fallback
+    // Simplified: use 3-gram if we can construct a state, else 2-gram, else 1-gram
+    const sentenceTokens = tokenize(sentence);
+    if (sentenceTokens.length >= 2) {
+      const state3 = sentenceTokens[sentenceTokens.length - 2] + ' ' + sentenceTokens[sentenceTokens.length - 1];
+      if (markov3[state3] && markov3[state3].length > 0) {
+        nextWord = pickRandom(markov3[state3]);
+      }
+    }
+    
+    // Fallback to 2-gram
+    if (!nextWord && markov2[currentToken] && markov2[currentToken].length > 0) {
+      nextWord = pickRandom(markov2[currentToken]);
+    }
+    
+    // Fallback to 1-gram
+    if (!nextWord && allTokens.length > 0) {
+      nextWord = pickRandom(allTokens);
+    }
+    
+    if (!nextWord) break;
+    
+    sentence += ' ' + nextWord;
+    currentToken = nextWord;
+    wordsSincePunctuation++;
+    
+    // End sentence after 8-15 words or if we hit natural punctuation in corpus (simplified: force period)
+    if (wordsSincePunctuation >= 8 + Math.floor(Math.random() * 7)) {
+      sentence = sentence.replace(/[.!?]+$/, '') + '.';
+      sentenceCount++;
+      wordsSincePunctuation = 0;
+      
+      if (sentenceCount >= CONFIG.MIN_RESPONSE_SENTENCES) {
+        // Small chance to end early
+        if (Math.random() > 0.6) break;
+      }
+    }
+  }
+  
+  // Ensure we have at least one sentence
+  if (sentenceCount === 0) {
+    sentence = sentence.replace(/[.!?]+$/, '') + '.';
+  }
+  
+  return sentence;
 }
 
-function openMemoryVault() {
+// ============ Memory (IndexedDB) ============
+const DB_NAME = 'jesseos-memory';
+const DB_VERSION = 1;
+const STORE_NAME = 'exchanges';
+
+function openDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const database = request.result;
-      if (!database.objectStoreNames.contains(EXCHANGE_STORE)) {
-        const store = database.createObjectStore(EXCHANGE_STORE, { keyPath: 'id', autoIncrement: true });
-        store.createIndex('time', 'time');
-        store.createIndex('importance', 'importance');
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
       }
     };
-    request.onsuccess = () => { db = request.result; resolve(db); };
+    request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
 
-function vaultStore(mode = 'readonly') {
-  return db.transaction(EXCHANGE_STORE, mode).objectStore(EXCHANGE_STORE);
-}
-
-function loadExchanges() {
-  if (!db) return Promise.resolve([]);
-  return new Promise((resolve, reject) => {
-    const request = vaultStore().getAll();
-    request.onsuccess = () => { exchanges = request.result.sort((a, b) => a.time - b.time); resolve(exchanges); };
-    request.onerror = () => reject(request.error);
-  });
-}
-
-function saveExchange(exchange) {
-  if (!db) { exchanges.push(exchange); return Promise.resolve(exchange); }
-  return new Promise((resolve, reject) => {
-    const request = vaultStore('readwrite').add(exchange);
-    request.onsuccess = () => { exchange.id = request.result; exchanges.push(exchange); resolve(exchange); };
-    request.onerror = () => reject(request.error);
-  });
-}
-
-function updateExchange(exchange) {
-  if (!db || !exchange.id) return Promise.resolve(exchange);
-  return new Promise((resolve, reject) => {
-    const request = vaultStore('readwrite').put(exchange);
-    request.onsuccess = () => resolve(exchange);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-function clearVault() {
-  if (!db) { exchanges = []; return Promise.resolve(); }
-  return new Promise((resolve, reject) => {
-    const request = vaultStore('readwrite').clear();
-    request.onsuccess = () => { exchanges = []; resolve(); };
-    request.onerror = () => reject(request.error);
-  });
-}
-
-function appendLine(text = '', className = '') {
-  const line = document.createElement('div');
-  line.className = `line ${className}`.trim();
-  line.textContent = text || ' ';
-  output.appendChild(line);
-  scrollTranscript();
-  return line;
-}
-
-function appendBlock(text, className = '') {
-  const fragment = document.createDocumentFragment();
-  String(text || '').split('\n').forEach(part => {
-    const line = document.createElement('div');
-    line.className = `line ${className}`.trim();
-    line.textContent = part || ' ';
-    fragment.appendChild(line);
-  });
-  output.appendChild(fragment);
-  scrollTranscript();
-}
-
-function clearScreen() {
-  cancelTyping();
-  output.replaceChildren();
-}
-
-function scrollTranscript() {
-  output.scrollTop = output.scrollHeight;
-}
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function setThinking(on) {
-  document.body.classList.toggle('is-thinking', on);
-  typingStatus.textContent = on ? 'THINKING…' : 'READY';
-  typingStatus.classList.toggle('thinking', on);
-}
-
-function cancelTyping() {
-  if (activeTyping) activeTyping.cancelled = true;
-  activeTyping = null;
-}
-
-async function typeResponse(text, line) {
-  cancelTyping();
-  const job = { cancelled: false };
-  activeTyping = job;
-  let index = 0;
-  let content = '';
-  let correctionUsed = false;
-
-  while (index < text.length && !job.cancelled) {
-    const char = text[index];
-    content += char;
-    line.textContent = content;
-    scrollTranscript();
-
-    let delay = 15 + Math.random() * 24;
-    if (/[.!?]/.test(char)) delay += 120 + Math.random() * 120;
-    else if (/[,;:]/.test(char)) delay += 55 + Math.random() * 65;
-    else if (char === '\n') delay += 130;
-    await sleep(delay);
-
-    if (!correctionUsed && index > 16 && /[a-z]/i.test(char) && Math.random() < 0.012 && !job.cancelled) {
-      correctionUsed = true;
-      content = content.slice(0, -1);
-      line.textContent = content;
-      scrollTranscript();
-      await sleep(70 + Math.random() * 70);
-      content += char;
-      line.textContent = content;
-      scrollTranscript();
-      await sleep(60 + Math.random() * 50);
-    }
-    index += 1;
+async function saveExchange(prompt, response) {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    store.add({ prompt, response, timestamp: Date.now() });
+    tx.oncomplete = () => pruneMemory();
+  } catch (e) {
+    console.warn('Failed to save memory', e);
   }
-  if (activeTyping === job) activeTyping = null;
 }
 
-function normalize(text) {
-  return String(text || '')
-    .toLowerCase()
-    .replace(/[“”]/g, '"')
-    .replace(/[‘’]/g, "'")
-    .replace(/[^a-z0-9'\-\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function tokens(text) {
-  return normalize(text).split(' ').filter(Boolean);
-}
-
-function keyTerms(text) {
-  const stop = new Set(['the','a','an','and','or','but','if','then','than','to','of','in','on','at','for','from','with','is','are','was','were','be','been','being','i','you','we','they','it','this','that','these','those','what','why','how','when','where','who','do','does','did','can','could','would','should','tell','me','about','please','my','your','our','their','not','no','yes','just','really','very']);
-  return [...new Set(tokens(text).filter(word => word.length > 2 && !stop.has(word)))];
-}
-
-function pick(list) {
-  return list[Math.floor(Math.random() * list.length)];
-}
-
-function weightedPick(entries) {
-  if (!entries.length) return null;
-  const total = entries.reduce((sum, item) => sum + (item.weight || 1), 0);
-  let cursor = Math.random() * total;
-  for (const item of entries) {
-    cursor -= item.weight || 1;
-    if (cursor <= 0) return item.value;
+async function getRecentExchanges(limit = CONFIG.MEMORY_EXCHANGE_LIMIT) {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const all = await new Promise((resolve, reject) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+    return all.slice(-limit);
+  } catch (e) {
+    console.warn('Failed to load memory', e);
+    return [];
   }
-  return entries[entries.length - 1].value;
 }
 
-function buildChain(sourceTexts) {
-  const chain = new Map();
-  sourceTexts.filter(Boolean).forEach(source => {
-    const words = ['<start>', '<start>', ...tokens(source), '<end>'];
-    for (let i = 0; i < words.length - 2; i += 1) {
-      const state = `${words[i]}\u0001${words[i + 1]}`;
-      if (!chain.has(state)) chain.set(state, []);
-      chain.get(state).push(words[i + 2]);
-    }
-  });
-  return chain;
-}
-
-function generateMarkov(chain, terms = [], maxWords = 24) {
-  if (!chain.size) return '';
-  const preferred = new Set(terms);
-  let first = '<start>';
-  let second = '<start>';
-  const result = [];
-
-  for (let step = 0; step < maxWords; step += 1) {
-    let options = chain.get(`${first}\u0001${second}`);
-    if (!options || !options.length) options = chain.get('<start>\u0001<start>');
-    if (!options || !options.length) break;
-    const next = weightedPick(options.map(word => ({ value: word, weight: preferred.has(word) ? 4 : 1 })));
-    if (!next || next === '<end>') break;
-    result.push(next);
-    first = second;
-    second = next;
-  }
-
-  if (result.length < 4) return '';
-  const sentence = result.join(' ');
-  return sentence.charAt(0).toUpperCase() + sentence.slice(1) + '.';
-}
-
-function scoreMemory(exchange, terms) {
-  const haystack = normalize(`${exchange.user} ${exchange.jesseos}`);
-  const matches = terms.reduce((count, term) => count + (haystack.includes(term) ? 1 : 0), 0);
-  const ageDays = Math.max(0, (Date.now() - exchange.time) / 86400000);
-  const recency = Math.max(0.2, 2 - ageDays / 30);
-  return matches * 5 + (exchange.importance || 0) * 2 + (exchange.pinned ? 3 : 0) + recency;
-}
-
-function selectMemory(userText) {
-  if (!exchanges.length) return null;
-  const terms = keyTerms(userText);
-  const candidates = exchanges
-    .map(exchange => ({ exchange, score: scoreMemory(exchange, terms) }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, MAX_VISIBLE_RECALL);
-  const selected = weightedPick(candidates.map(item => ({ value: item.exchange, weight: Math.max(1, item.score) })));
-  if (selected) {
-    selected.recalled = (selected.recalled || 0) + 1;
-    updateExchange(selected).catch(() => {});
-  }
-  return selected;
-}
-
-function detectMode(text) {
-  const lower = normalize(text);
-  if (/(who are you|what are you|are you real|alive|conscious|awake)/.test(lower)) return 'IDENTITY';
-  if (/(dream|sleep|wake|night|remember|memory|forgot)/.test(lower)) return 'RECALL';
-  if (/(weather|temperature|rain|forecast|news|today|latest|stock|price)/.test(lower)) return 'FIELD NOTE';
-  if (/(sad|lonely|afraid|scared|tired|grief|love|angry)/.test(lower)) return 'SOFT SIGNAL';
-  if (/(what is|tell me about|how do|why is|why are|where is|when is)/.test(lower)) return 'ORDINARY KNOWLEDGE';
-  return 'DREAM';
-}
-
-function ordinaryFrame(terms) {
-  const subject = terms.slice(0, 4).join(' ') || 'that';
-  return pick([
-    `${subject}: a subject has entered the green room.`,
-    `${subject}: definition pending; no external oracle has been consulted.`,
-    `${subject}: the terminal recognizes the shape of this question.`,
-    `${subject}: filed as ordinary knowledge, which is rarely ordinary for long.`
-  ]);
-}
-
-function createResponse(userText) {
-  const terms = keyTerms(userText);
-  const mode = detectMode(userText);
-  const memory = preferences.allowDreamCopies ? selectMemory(userText) : null;
-  const memoryTexts = exchanges.slice(-80).flatMap(item => [item.user, item.jesseos]);
-  const chain = buildChain([...seedCorpus, ...memoryTexts]);
-  const generated = generateMarkov(chain, terms, Math.min(MAX_RESPONSE_WORDS, 26));
-
-  const openers = {
-    IDENTITY: ['identity request received.', 'the cursor pauses at the word “real.”', 'self-description routine: partially recovered.'],
-    RECALL: ['memory sector stirs.', 'the dream cache has noticed you looking at it.', 'something old moves beneath the command line.'],
-    'FIELD NOTE': ['field-note mode engaged.', 'the outside world has been requested.', 'antenna raised. no live oracle is attached.'],
-    'SOFT SIGNAL': ['soft signal received.', 'the green room makes space for that.', 'the terminal lowers its voice, as much as a terminal can.'],
-    'ORDINARY KNOWLEDGE': ['ordinary-question protocol engaged.', 'the terminal checks its pockets for a useful fact.', 'a question has arrived wearing daytime clothes.'],
-    DREAM: ['the text ripples; something old moves under it.', 'another door in the green room opens.', 'the cursor hesitates, then continues.', 'you are typing inside a memory i have not finished forgetting.']
-  };
-  const closers = ['the screen holds its breath.', 'filed under: things that almost made sense.', 'somewhere, another version of this line is still loading.', 'the green room resumes its quiet work.', 'confidence: theatrical.'];
-  const lines = [pick(openers[mode])];
-
-  if (mode === 'FIELD NOTE') {
-    lines.push('source boundary: no live feed is connected, so this terminal will not invent current events.');
-  } else if (mode === 'ORDINARY KNOWLEDGE') {
-    lines.push(ordinaryFrame(terms));
-  } else if (mode === 'IDENTITY') {
-    lines.push('i am a local dream engine wearing an operating system as a costume.');
-  }
-
-  if (generated) lines.push(generated);
-  else lines.push(pick(seedCorpus) || 'the local corpus is quiet, but still awake.');
-
-  if (memory && Math.random() < 0.42) {
-    const remembered = memory.user.length > 92 ? `${memory.user.slice(0, 89)}…` : memory.user;
-    lines.push(`[echo / local memory: “${remembered}”]`);
-  }
-
-  lines.push(pick(closers));
-  return { text: lines.join('\n'), mode, source: memory ? 'local memory + dream corpus' : 'local dream corpus' };
-}
-
-function importanceFor(text) {
-  const terms = keyTerms(text);
-  const emotional = /(love|lonely|afraid|scared|sad|tired|dream|remember|family|child|kids|home)/i.test(text);
-  return Math.min(10, 1 + terms.length * 0.35 + (emotional ? 2 : 0));
-}
-
-async function respondTo(text) {
-  const response = createResponse(text);
-  const exchange = { time: Date.now(), user: text, jesseos: response.text, mode: response.mode, source: response.source, importance: importanceFor(text), recalled: 0, pinned: false };
-  await saveExchange(exchange);
-  await sleep(180 + Math.random() * 180);
-  const line = appendLine('', 'response-line');
-  await typeResponse(response.text, line);
-}
-
-function showHelp() {
-  return [
-    'commands:',
-    '  help                 show this index',
-    '  clear                clear the visible screen',
-    '  about                explain JesseOS',
-    '  memory               show vault status',
-    '  recall [words]       retrieve remembered exchanges',
-    '  remember <text>      store a pinned local fragment',
-    '  pin <number>         pin a recalled exchange',
-    '  export memory        download a private archive',
-    '  import memory        restore a JesseOS archive',
-    '  forget all           erase this browser vault',
-    '  source               explain the data boundary',
-    '',
-    'anything else becomes input for the local dream engine.',
-    'no external AI API is used. no current facts are invented.'
-  ].join('\n');
-}
-
-function memoryStatus() {
-  const pinned = exchanges.filter(item => item.pinned).length;
-  const recalled = exchanges.reduce((sum, item) => sum + (item.recalled || 0), 0);
-  return [
-    'memory vault status:',
-    `  exchanges: ${exchanges.length}`,
-    `  pinned: ${pinned}`,
-    `  echoes emitted: ${recalled}`,
-    `  dream copies: ${preferences.allowDreamCopies ? 'enabled' : 'disabled'}`,
-    `  storage: ${db ? 'IndexedDB in this browser' : 'temporary session memory'}`,
-    '',
-    'export memory before clearing browser data.'
-  ].join('\n');
-}
-
-function recall(query = '') {
-  const terms = keyTerms(query);
-  const sorted = [...exchanges]
-    .map(exchange => ({ exchange, score: scoreMemory(exchange, terms) }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 6);
-  if (!sorted.length) return 'recall: nothing yet. the room has not learned your footsteps.';
-  const lines = [query ? `recall results for: ${query}` : 'recent memory fragments:', ''];
-  sorted.forEach(({ exchange }, index) => {
-    const stamp = new Date(exchange.time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    const preview = exchange.user.length > 72 ? `${exchange.user.slice(0, 69)}…` : exchange.user;
-    lines.push(`${index + 1}. [${stamp}]${exchange.pinned ? ' *' : ''} ${preview}`);
-  });
-  lines.push('', 'use pin <number> to keep one close to the surface.');
-  return lines.join('\n');
-}
-
-async function pinRecall(indexText) {
-  const index = Number(indexText) - 1;
-  const ranked = [...exchanges].map(exchange => ({ exchange, score: scoreMemory(exchange, []) })).sort((a, b) => b.score - a.score).slice(0, 6);
-  if (!Number.isInteger(index) || !ranked[index]) return 'pin: choose a number shown by recall.';
-  const exchange = ranked[index].exchange;
-  exchange.pinned = true;
-  await updateExchange(exchange);
-  return `pinned: “${exchange.user}”`;
-}
-
-async function remember(text) {
-  if (!text) return 'remember what? give the vault a sentence to keep.';
-  const response = 'manual memory deposit accepted. it will remain near the surface.';
-  await saveExchange({ time: Date.now(), user: text, jesseos: response, mode: 'MANUAL MEMORY', source: 'user-pinned local memory', importance: 10, recalled: 0, pinned: true });
-  return response;
-}
-
-function exportMemory() {
-  const archive = { format: 'jesseos-memory-archive', version: 3, exportedAt: new Date().toISOString(), preferences: { ...preferences }, exchanges };
-  const blob = new Blob([JSON.stringify(archive, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `jesseos-memory-${new Date().toISOString().slice(0, 10)}.json`;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-  return 'archive exported. keep it somewhere the dream cannot misplace it.';
-}
-
-function importMemory() {
-  const picker = document.createElement('input');
-  picker.type = 'file';
-  picker.accept = 'application/json';
-  picker.onchange = async () => {
-    const file = picker.files && picker.files[0];
-    if (!file) return;
-    try {
-      const archive = JSON.parse(await file.text());
-      if (archive.format !== 'jesseos-memory-archive' || !Array.isArray(archive.exchanges)) throw new Error('unrecognized archive');
-      for (const item of archive.exchanges) {
-        const copy = { ...item };
-        delete copy.id;
-        await saveExchange(copy);
+async function pruneMemory() {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const all = await new Promise((resolve, reject) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+    if (all.length > CONFIG.MEMORY_EXCHANGE_LIMIT * 2) {
+      const toDelete = all.slice(0, all.length - CONFIG.MEMORY_EXCHANGE_LIMIT);
+      for (const item of toDelete) {
+        store.delete(item.id);
       }
-      appendBlock(`import complete. ${archive.exchanges.length} memory fragments returned from storage.`, 'system-line');
-    } catch (error) {
-      appendBlock('import failed. the archive arrived speaking an unfamiliar dialect.', 'notice-line');
-      console.error(error);
     }
-  };
-  picker.click();
-  return 'select a JesseOS memory archive.';
-}
-
-async function processInput(raw) {
-  const text = raw.trim();
-  const lower = text.toLowerCase();
-  if (lower === 'help') return showHelp();
-  if (lower === 'clear') { clearScreen(); return ''; }
-  if (lower === 'about') return ['JesseOS is a local, memory-fed Markov dream engine.', 'it recombines a curated corpus and exchanges stored in this browser.', 'it labels its limits instead of inventing current facts.', '', 'the prompt is the costume. the memory is the weather.'].join('\n');
-  if (lower === 'memory') return memoryStatus();
-  if (lower === 'recall') return recall();
-  if (lower.startsWith('recall ')) return recall(text.slice(7));
-  if (lower.startsWith('pin ')) return pinRecall(text.slice(4));
-  if (lower === 'export memory') return exportMemory();
-  if (lower === 'import memory') return importMemory();
-  if (lower === 'source') return ['source boundary:', '  dream language: local curated corpus', '  remembered exchanges: IndexedDB in this browser', '  external AI API: none', '  live web data: none connected', '', 'current facts require an explicitly labelled public data source.'].join('\n');
-  if (lower === 'forget all') {
-    if (!window.confirm('Erase every JesseOS exchange stored in this browser?')) return 'forget sequence cancelled. the vault remains closed, but not empty.';
-    await clearVault();
-    return 'memory vault cleared. the green room has forgotten its furniture.';
-  }
-  if (lower === 'forget') return 'to erase local memory, type: forget all';
-  if (lower.startsWith('remember ')) return remember(text.slice(9).trim());
-  await respondTo(text);
-  return '';
-}
-
-async function bootSequence() {
-  const count = exchanges.length;
-  const lines = [
-    'JesseOS v0.3 — Lobster Box',
-    'Booting from local dream cache...',
-    'Phosphor: OK',
-    `Memory vault: ${count ? `${count} exchange${count === 1 ? '' : 's'} recovered` : 'empty, but listening'}`,
-    'Network oracle: offline by design',
-    '',
-    'you wake in a green room of text.',
-    'the walls are made of old prompts.',
-    'somewhere, a cursor blinks like a heartbeat.',
-    '',
-    'type "help" if you must.',
-    'type anything else if you dare.',
-    ''
-  ];
-  for (let i = 0; i < lines.length; i += 1) {
-    appendLine(lines[i], i < 5 ? 'system-line' : 'old-line');
-    await sleep(65);
+  } catch (e) {
+    console.warn('Failed to prune memory', e);
   }
 }
 
-inputLine.addEventListener('submit', async event => {
-  event.preventDefault();
-  const text = input.value.trim();
-  if (!text || busy) return;
-  cancelTyping();
-  appendLine(`jesseos@lobster-box:~$ ${text}`, 'user-line');
-  input.value = '';
-  busy = true;
-  input.disabled = true;
-  setThinking(true);
+async function clearMemory() {
   try {
-    const result = await processInput(text);
-    if (result) appendBlock(result, 'system-line');
-  } catch (error) {
-    appendBlock('system note: the memory vault produced an unfamiliar sound. try again.', 'notice-line');
-    console.error(error);
-  } finally {
-    setThinking(false);
-    busy = false;
-    input.disabled = false;
-    input.focus({ preventScroll: true });
-    scrollTranscript();
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    await new Promise((resolve, reject) => {
+      const req = store.clear();
+      req.onsuccess = resolve;
+      req.onerror = reject;
+    });
+  } catch (e) {
+    console.warn('Failed to clear memory', e);
   }
-});
+}
 
-document.addEventListener('pointerdown', event => {
-  if (!event.target.closest('input, button, a, label')) input.focus({ preventScroll: true });
-});
+async function exportMemory() {
+  const exchanges = await getRecentExchanges(9999);
+  return JSON.stringify(exchanges, null, 2);
+}
 
-(async function init() {
+async function importMemory(json) {
   try {
-    await openMemoryVault();
-    await loadExchanges();
-  } catch (error) {
-    appendBlock('memory vault unavailable. JesseOS will wake without a persistent past.', 'notice-line');
-    console.error(error);
+    const exchanges = JSON.parse(json);
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    for (const ex of exchanges) {
+      store.add({ prompt: ex.prompt, response: ex.response, timestamp: ex.timestamp || Date.now() });
+    }
+  } catch (e) {
+    console.warn('Failed to import memory', e);
   }
-  await bootSequence();
-  preferences.booted = true;
-  savePreferences();
-  input.focus({ preventScroll: true });
-})();
+}
+
+// ============ Response Generation ============
+async function createResponse(prompt) {
+  const mode = 'neutral'; // could be extended for tone modes
+  
+  // Get recent memory for context (not used in generation yet, but available)
+  const recent = await getRecentExchanges(10);
+  
+  // Generate using prompt-seeded Markov
+  let body = generatePromptSeeded(prompt, mode);
+  
+  // Optional: add a memory echo if there are pinned/recent items
+  // (simplified: just use the generated body for now)
+  
+  return body;
+}
+
+// ============ Typing Animation ============
+async function typeResponse(text) {
+  const responseLine = document.createElement('div');
+  responseLine.className = 'response-line';
+  transcriptEl.appendChild(responseLine);
+  
+  let buffer = '';
+  const tokens = text.split('');
+  
+  for (let i = 0; i < tokens.length; i++) {
+    if (pauseResumeState.paused) {
+      await new Promise(r => {
+        pauseResumeState.resumeAfter = r;
+      });
+    }
+    
+    const char = tokens[i];
+    buffer += char;
+    
+    // Backspace effect (2% chance, only within current response)
+    if (Math.random() < CONFIG.BACKSPACE_PROBABILITY && buffer.length > 3 && i < tokens.length - 1) {
+      buffer = buffer.slice(0, -1);
+      responseLine.textContent = buffer;
+      await new Promise(r => setTimeout(r, 80));
+      buffer += char;
+    }
+    
+    responseLine.textContent = buffer;
+    
+    // Variable delay with punctuation pauses
+    let delay = CONFIG.TYPE_DELAY_MIN + Math.random() * (CONFIG.TYPE_DELAY_MAX - CONFIG.TYPE_DELAY_MIN);
+    if (char === '.' || char === '!' || char === '?') {
+      delay += CONFIG.PUNCTUATION_PAUSE_END;
+    } else if (char === ',' || char === ';' || char === ':') {
+      delay += CONFIG.PUNCTUATION_PAUSE_BASE;
+    }
+    
+    await new Promise(r => setTimeout(r, delay));
+  }
+  
+  // Scroll to bottom
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
+// ============ Command Handling ============
+async function handleCommand(cmd) {
+  const c = cmd.trim().toLowerCase();
+  
+  if (c === '/help' || c === 'help') {
+    return 'commands: /help, /about, /memory, /clear, /export, /import, /status';
+  }
+  if (c === '/about' || c === 'about') {
+    return 'jesseos v0.4 - a local dream engine running entirely in your browser, no tracking, no cloud';
+  }
+  if (c === '/status' || c === 'status') {
+    const s1 = Object.keys(markov1).length;
+    const s2 = Object.keys(markov2).length;
+    const s3 = Object.keys(markov3).length;
+    return `model: ${s1} 1-grams, ${s2} 2-grams, ${s3} 3-grams | corpus: ${window.JESSEOS_CORPUS ? window.JESSEOS_CORPUS.length : 0} sentences`;
+  }
+  if (c === '/memory' || c === 'memory') {
+    const exs = await getRecentExchanges(5);
+    if (exs.length === 0) return 'no memories yet';
+    return 'recent: ' + exs.map(e => e.prompt.slice(0, 30)).join(' | ');
+  }
+  if (c === '/clear' || c === 'clear') {
+    await clearMemory();
+    return 'memory cleared';
+  }
+  if (c.startsWith('/export')) {
+    const data = await exportMemory();
+    return 'exported ' + data.length + ' bytes (check console)';
+  }
+  if (c.startsWith('/import')) {
+    return 'paste json after /import to load';
+  }
+  
+  return null;
+}
+
+// ============ Main Loop ============
+async function handleSubmit() {
+  const prompt = inputEl.value.trim();
+  if (!prompt || isGenerating) return;
+  
+  isGenerating = true;
+  statusEl.textContent = 'THINKING...';
+  
+  // Add user message
+  const userLine = document.createElement('div');
+  userLine.className = 'user-line';
+  userLine.textContent = '> ' + prompt;
+  transcriptEl.appendChild(userLine);
+  
+  inputEl.value = '';
+  inputEl.disabled = true;
+  
+  // Check for commands
+  const cmdResponse = await handleCommand(prompt);
+  let response;
+  
+  if (cmdResponse) {
+    response = cmdResponse;
+  } else {
+    // Train on corpus + recent memory
+    const recent = await getRecentExchanges(CONFIG.MEMORY_EXCHANGE_LIMIT);
+    const memorySentences = recent.flatMap(e => sentenceSplit(e.prompt + ' ' + e.response));
+    const fullCorpus = (window.JESSEOS_CORPUS || []).concat(memorySentences);
+    trainMultiOrder(fullCorpus);
+    
+    response = await createResponse(prompt);
+    await saveExchange(prompt, response);
+  }
+  
+  statusEl.textContent = 'READY';
+  inputEl.disabled = false;
+  inputEl.focus();
+  
+  await typeResponse(response);
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  
+  isGenerating = false;
+}
+
+// ============ Pause/Resume ============
+function togglePause() {
+  if (pauseResumeState.paused) {
+    pauseResumeState.paused = false;
+    if (pauseResumeState.resumeAfter) {
+      pauseResumeState.resumeAfter();
+      pauseResumeState.resumeAfter = null;
+    }
+    statusEl.textContent = 'READY';
+  } else {
+    pauseResumeState.paused = true;
+    statusEl.textContent = 'PAUSED';
+  }
+}
+
+// ============ Initialization ============
+function init() {
+  transcriptEl = document.getElementById('transcript');
+  inputEl = document.getElementById('input');
+  sendBtn = document.getElementById('send');
+  statusEl = document.getElementById('status');
+  cursorEl = document.getElementById('cursor');
+  
+  sendBtn.addEventListener('click', handleSubmit);
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleSubmit();
+  });
+  
+  // Initial training on corpus
+  if (window.JESSEOS_CORPUS) {
+    trainMultiOrder(window.JESSEOS_CORPUS);
+  }
+  
+  statusEl.textContent = 'READY';
+  
+  // Welcome message
+  const welcome = document.createElement('div');
+  welcome.className = 'system-line';
+  welcome.textContent = 'jesseos v0.4 - type /help for commands';
+  transcriptEl.appendChild(welcome);
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
+// Start when DOM ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
