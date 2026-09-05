@@ -31,7 +31,7 @@ body {
 
 @font-face {
   font-family: "JesseOS C64";
-  src: url("./assets/fonts/C64ProMono.woff2") format("woff2");
+  src: url("C64_Pro-STYLE.woff2") format("woff2");
   font-display: swap;
 }
 
