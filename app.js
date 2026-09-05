@@ -1,4 +1,4 @@
-// jesseos v0.3 - Complete (Presence + Deep Engine + Empathy)
+// jesseos v0.3 - Complete + Waiting Cursor + Backspace
 
 // === CONFIG ===
 const CONFIG = {
@@ -14,29 +14,59 @@ class PresenceLayer {
     this.variableTyping = CONFIG.presence.variableTyping;
     this.paused = false;
     this.mobileTerminal = CONFIG.presence.mobileTerminal;
+    this.isWaiting = false;
   }
+
   init() {
     if (this.thinkingCursor) this.setupThinkingCursor();
     if (this.mobileTerminal) this.setupMobileTerminal();
   }
+
   setupThinkingCursor() {
     document.body.style.cursor = 'progress';
     setTimeout(() => document.body.style.cursor = 'default', 300);
   }
+
   setupMobileTerminal() {
     const term = document.getElementById('terminal');
     if (term) { term.style.fontSize = '14px'; term.style.padding = '8px'; }
   }
+
+  showWaitingCursor(show = true) {
+    this.isWaiting = show;
+    document.body.style.cursor = show ? 'wait' : 'default';
+  }
+
   typeWithPresence(text, element) {
     if (!this.variableTyping) { element.textContent = text; return; }
+    
     let i = 0;
+    let backspaceChance = 0.02;
+    let lastWasBackspace = false;
+    
     const type = () => {
       if (this.paused) return;
-      element.textContent += text.charAt(i++);
-      if (i < text.length) setTimeout(type, 20 + Math.random() * 30);
+      
+      if (!lastWasBackspace && Math.random() < backspaceChance && element.textContent.length > 0) {
+        element.textContent = element.textContent.slice(0, -1);
+        lastWasBackspace = true;
+        setTimeout(type, 50 + Math.random() * 50);
+        return;
+      }
+      
+      lastWasBackspace = false;
+      
+      if (i < text.length) {
+        element.textContent += text.charAt(i++);
+        let pause = 20 + Math.random() * 30;
+        if (text.charAt(i-1) === '.' || text.charAt(i-1) === '!' || text.charAt(i-1) === '?') pause += 150;
+        else if (text.charAt(i-1) === ',') pause += 80;
+        setTimeout(type, pause);
+      }
     };
     type();
   }
+
   pause() { this.paused = true; }
   resume() { this.paused = false; }
 }
@@ -138,11 +168,13 @@ const empathy = new EmpathyLayer();
 presence.init();
 
 function jesseos(input, mood = 'neutral') {
+  presence.showWaitingCursor(true);
   const safe = empathy.safetyFilter(input);
   const transformed = engine.transformMemory(safe);
   const generated = engine.generate(transformed, 30);
   const motivated = engine.applyMotifs(generated);
   const toned = empathy.adjustTone(motivated, mood);
+  presence.showWaitingCursor(false);
   return toned;
 }
 
