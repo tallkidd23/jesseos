@@ -7,13 +7,13 @@ function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-function cacheKey(source) {
-  return `${LIVE_CACHE_PREFIX}${source}`;
+function cacheKey(source, scope = '') {
+  return `${LIVE_CACHE_PREFIX}${source}:${String(scope).trim().toLowerCase()}`;
 }
 
-function readCache(source, ttlMs = LIVE_CACHE_TTL_MS) {
+function readCache(source, scope = '', ttlMs = LIVE_CACHE_TTL_MS) {
   try {
-    const raw = localStorage.getItem(cacheKey(source));
+    const raw = localStorage.getItem(cacheKey(source, scope));
     if (!raw) return null;
     const cached = JSON.parse(raw);
     const ageMs = Date.now() - new Date(cached.fetchedAt).getTime();
@@ -24,10 +24,10 @@ function readCache(source, ttlMs = LIVE_CACHE_TTL_MS) {
   }
 }
 
-function writeCache(source, observations) {
+function writeCache(source, scope, observations) {
   const cached = { fetchedAt: now(), observations };
   try {
-    localStorage.setItem(cacheKey(source), JSON.stringify(cached));
+    localStorage.setItem(cacheKey(source, scope), JSON.stringify(cached));
   } catch {
     // Storage is optional; a live result remains usable for this session.
   }
@@ -64,6 +64,20 @@ function observation(source, payload) {
   };
 }
 
+function unavailable(source, error) {
+  return {
+    source,
+    status: 'unavailable',
+    fetchedAt: null,
+    observations: [],
+    error: error instanceof Error ? error.message : String(error)
+  };
+}
+
+function placeLabel(place) {
+  return [place.name, place.admin1, place.country].filter(Boolean).join(', ');
+}
+
 export async function getEarthquakes({ limit = 5, force = false } = {}) {
   const source = 'earthquakes';
   const cached = !force && readCache(source);
@@ -84,71 +98,82 @@ export async function getEarthquakes({ limit = 5, force = false } = {}) {
         detail: properties.place || null
       });
     });
-    const saved = writeCache(source, observations);
+    const saved = writeCache(source, '', observations);
     return { source, status: 'fresh', fetchedAt: saved.fetchedAt, observations };
   } catch (error) {
-    return { source, status: 'unavailable', fetchedAt: null, observations: [], error: error.message };
+    return unavailable(source, error);
   }
 }
 
-function getPosition(options = {}) {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Geolocation is not supported in this browser'));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: false,
-      timeout: 10000,
-      maximumAge: 10 * 60 * 1000,
-      ...options
-    });
-  });
+export async function findPlace(query) {
+  const normalized = String(query || '').trim();
+  if (!normalized) throw new Error('Weather needs a place. Try: /listen weather Cleveland, Ohio');
+
+  const url = new URL('https://geocoding-api.open-meteo.com/v1/search');
+  url.searchParams.set('name', normalized);
+  url.searchParams.set('count', '1');
+  url.searchParams.set('language', 'en');
+  url.searchParams.set('format', 'json');
+
+  const data = await fetchJson(url.toString());
+  const place = asArray(data.results)[0];
+  if (!place || !Number.isFinite(place.latitude) || !Number.isFinite(place.longitude)) {
+    throw new Error(`No place found for: ${normalized}`);
+  }
+  return place;
 }
 
-export async function getLocalWeather({ force = false, coordinates = null } = {}) {
+export async function getWeatherForPlace(query, { force = false } = {}) {
   const source = 'weather';
-  const cached = !force && readCache(source);
+  const requestedPlace = String(query || '').trim();
+  if (!requestedPlace) return unavailable(source, 'Weather needs a place. Try: /listen weather Cleveland, Ohio');
+
+  const scope = requestedPlace.toLowerCase();
+  const cached = !force && readCache(source, scope);
   if (cached) return { source, status: 'cached', fetchedAt: cached.fetchedAt, observations: cached.observations };
 
   try {
-    const point = coordinates || await getPosition();
-    const latitude = coordinates ? coordinates.latitude : point.coords.latitude;
-    const longitude = coordinates ? coordinates.longitude : point.coords.longitude;
+    const place = await findPlace(requestedPlace);
     const url = new URL('https://api.open-meteo.com/v1/forecast');
-    url.searchParams.set('latitude', latitude);
-    url.searchParams.set('longitude', longitude);
+    url.searchParams.set('latitude', place.latitude);
+    url.searchParams.set('longitude', place.longitude);
     url.searchParams.set('current', 'temperature_2m,apparent_temperature,weather_code,wind_speed_10m');
     url.searchParams.set('timezone', 'auto');
 
     const data = await fetchJson(url.toString());
     const current = data.current || {};
-    const label = weatherLabel(current.weather_code);
+    const labels = placeLabel(place);
     const observations = [observation(source, {
       observedAt: current.time ? new Date(current.time).toISOString() : now(),
-      title: label,
+      title: weatherLabel(current.weather_code),
       value: current.temperature_2m ?? null,
       unit: data.current_units?.temperature_2m || '°C',
-      location: { latitude, longitude, timezone: data.timezone || null },
+      location: {
+        requested: requestedPlace,
+        name: labels,
+        latitude: place.latitude,
+        longitude: place.longitude,
+        timezone: data.timezone || place.timezone || null
+      },
       url: 'https://open-meteo.com/',
-      detail: `Feels like ${current.apparent_temperature ?? '—'}${data.current_units?.apparent_temperature || '°C'}; wind ${current.wind_speed_10m ?? '—'}${data.current_units?.wind_speed_10m || ' km/h'}`
+      detail: `${labels}; feels like ${current.apparent_temperature ?? '—'}${data.current_units?.apparent_temperature || '°C'}; wind ${current.wind_speed_10m ?? '—'}${data.current_units?.wind_speed_10m || ' km/h'}`
     })];
-    const saved = writeCache(source, observations);
+    const saved = writeCache(source, scope, observations);
     return { source, status: 'fresh', fetchedAt: saved.fetchedAt, observations };
   } catch (error) {
-    return { source, status: 'unavailable', fetchedAt: null, observations: [], error: error.message };
+    return unavailable(source, error);
   }
 }
 
 export async function getLiveSnapshot(options = {}) {
-  const [earthquakes, weather] = await Promise.all([
-    getEarthquakes(options.earthquakes),
-    getLocalWeather(options.weather)
-  ]);
+  const place = String(options.place || '').trim();
+  const requests = [getEarthquakes(options.earthquakes)];
+  if (place) requests.push(getWeatherForPlace(place, options.weather));
+  const sources = await Promise.all(requests);
   return {
     fetchedAt: now(),
-    sources: [earthquakes, weather],
-    observations: [...earthquakes.observations, ...weather.observations]
+    sources,
+    observations: sources.flatMap((result) => result.observations)
   };
 }
 
