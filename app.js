@@ -1,4 +1,4 @@
-// jesseos v0.3 - Presence + Deep Engine + Empathy
+// jesseos v0.3 - Presence Layer (Commit 1/3)
 
 // === CONFIG ===
 const CONFIG = {
@@ -52,62 +52,23 @@ class PresenceLayer {
   resume() { this.paused = false; }
 }
 
-// === DEEP ENGINE ===
+// === DEEP ENGINE (stub for Commit 2/3) ===
 class DeepEngine {
   constructor() {
     this.order = CONFIG.engine.markovOrder;
     this.motifs = CONFIG.engine.motifs;
     this.memory = [];
     this.noveltyGuard = CONFIG.engine.noveltyGuard;
-  }
-
-  train(corpus) {
     this.model = {};
-    for (let i = 0; i <= corpus.length - this.order; i++) {
-      const state = corpus.slice(i, i + this.order).join(' ');
-      const next = corpus[i + this.order];
-      if (!this.model[state]) this.model[state] = [];
-      this.model[state].push(next);
-    }
   }
-
-  generate(seed, length = 50) {
-    let state = seed.split(' ');
-    let output = [...state];
-    for (let i = 0; i < length; i++) {
-      const key = output.slice(-this.order).join(' ');
-      const options = this.model[key] || ['...'];
-      const next = options[Math.floor(Math.random() * options.length)];
-      output.push(next);
-    }
-    return output.join(' ');
-  }
-
-  applyMotifs(text) {
-    if (!this.motifs) return text;
-    const motifs = ['echo', 'spiral', 'mirror'];
-    const m = motifs[Math.floor(Math.random() * motifs.length)];
-    if (m === 'echo') return text + ' → ' + text.split(' ').reverse().join(' ');
-    if (m === 'spiral') return text.split(' ').map((w,i) => w.repeat(i%3+1)).join(' ');
-    if (m === 'mirror') return text + ' | ' + text;
-    return text;
-  }
-
-  transformMemory(input) {
-    if (!CONFIG.engine.memoryTransforms) return input;
-    this.memory.push(input);
-    if (this.memory.length > 10) this.memory.shift();
-    return input.toLowerCase().replace(/\b(i|me|my)\b/g, 'we');
-  }
-
-  checkNovelty(text) {
-    if (!this.noveltyGuard) return true;
-    const seen = this.memory.some(m => m.includes(text));
-    return !seen;
-  }
+  train(corpus) { /* implemented in Commit 2/3 */ }
+  generate(seed, length) { return seed; }
+  applyMotifs(text) { return text; }
+  transformMemory(input) { return input; }
+  checkNovelty(text) { return true; }
 }
 
-// === EMPATHY LAYER ===
+// === EMPATHY LAYER (stub for Commit 3/3) ===
 class EmpathyLayer {
   constructor() {
     this.toneDirector = CONFIG.empathy.toneDirector;
@@ -116,36 +77,9 @@ class EmpathyLayer {
     this.safetyOverride = CONFIG.empathy.safetyOverride;
     this.climateCommands = CONFIG.empathy.climateCommands;
   }
-
-  adjustTone(text, mood = 'neutral') {
-    if (!this.toneDirector) return text;
-    const tones = {
-      practical: { prefix: '→ ', suffix: ' [actionable]' },
-      gentle: { prefix: '💛 ', suffix: ' [soft]' },
-      neutral: { prefix: '', suffix: '' }
-    };
-    const t = tones[mood] || tones.neutral;
-    return t.prefix + text + t.suffix;
-  }
-
-  safetyFilter(text) {
-    if (!this.safetyOverride) return text;
-    const blocked = ['harm', 'danger', 'illegal'];
-    if (blocked.some(b => text.toLowerCase().includes(b))) {
-      return 'I care about your safety. Let\'s find a constructive path.';
-    }
-    return text;
-  }
-
-  climateCommand(cmd) {
-    if (!this.climateCommands) return '';
-    const cmds = {
-      'climate warm': '🌡️ Temperature increased',
-      'climate cool': '❄️ Temperature decreased',
-      'climate reset': '🔄 Climate reset to default'
-    };
-    return cmds[cmd] || 'Unknown climate command';
-  }
+  adjustTone(text, mood) { return text; }
+  safetyFilter(text) { return text; }
+  climateCommand(cmd) { return ''; }
 }
 
 // === MAIN ===
@@ -155,7 +89,6 @@ const empathy = new EmpathyLayer();
 
 presence.init();
 
-// Example usage
 function jesseos(input, mood = 'neutral') {
   const safe = empathy.safetyFilter(input);
   const transformed = engine.transformMemory(safe);
@@ -165,7 +98,6 @@ function jesseos(input, mood = 'neutral') {
   return toned;
 }
 
-// Export for browser
 window.jesseos = jesseos;
 window.PresenceLayer = PresenceLayer;
 window.DeepEngine = DeepEngine;
