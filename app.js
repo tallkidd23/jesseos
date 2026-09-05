@@ -1,4 +1,4 @@
-// jesseos v0.3 - Presence Layer (Commit 1/3)
+// jesseos v0.3 - Deep Engine (Commit 2/3)
 
 // === CONFIG ===
 const CONFIG = {
@@ -15,30 +15,20 @@ class PresenceLayer {
     this.paused = false;
     this.mobileTerminal = CONFIG.presence.mobileTerminal;
   }
-
   init() {
     if (this.thinkingCursor) this.setupThinkingCursor();
     if (this.mobileTerminal) this.setupMobileTerminal();
   }
-
   setupThinkingCursor() {
     document.body.style.cursor = 'progress';
     setTimeout(() => document.body.style.cursor = 'default', 300);
   }
-
   setupMobileTerminal() {
     const term = document.getElementById('terminal');
-    if (term) {
-      term.style.fontSize = '14px';
-      term.style.padding = '8px';
-    }
+    if (term) { term.style.fontSize = '14px'; term.style.padding = '8px'; }
   }
-
   typeWithPresence(text, element) {
-    if (!this.variableTyping) {
-      element.textContent = text;
-      return;
-    }
+    if (!this.variableTyping) { element.textContent = text; return; }
     let i = 0;
     const type = () => {
       if (this.paused) return;
@@ -47,12 +37,11 @@ class PresenceLayer {
     };
     type();
   }
-
   pause() { this.paused = true; }
   resume() { this.paused = false; }
 }
 
-// === DEEP ENGINE (stub for Commit 2/3) ===
+// === DEEP ENGINE ===
 class DeepEngine {
   constructor() {
     this.order = CONFIG.engine.markovOrder;
@@ -61,11 +50,51 @@ class DeepEngine {
     this.noveltyGuard = CONFIG.engine.noveltyGuard;
     this.model = {};
   }
-  train(corpus) { /* implemented in Commit 2/3 */ }
-  generate(seed, length) { return seed; }
-  applyMotifs(text) { return text; }
-  transformMemory(input) { return input; }
-  checkNovelty(text) { return true; }
+
+  train(corpus) {
+    this.model = {};
+    for (let i = 0; i <= corpus.length - this.order; i++) {
+      const state = corpus.slice(i, i + this.order).join(' ');
+      const next = corpus[i + this.order];
+      if (!this.model[state]) this.model[state] = [];
+      this.model[state].push(next);
+    }
+  }
+
+  generate(seed, length = 50) {
+    let state = seed.split(' ');
+    let output = [...state];
+    for (let i = 0; i < length; i++) {
+      const key = output.slice(-this.order).join(' ');
+      const options = this.model[key] || ['...'];
+      const next = options[Math.floor(Math.random() * options.length)];
+      output.push(next);
+    }
+    return output.join(' ');
+  }
+
+  applyMotifs(text) {
+    if (!this.motifs) return text;
+    const motifs = ['echo', 'spiral', 'mirror'];
+    const m = motifs[Math.floor(Math.random() * motifs.length)];
+    if (m === 'echo') return text + ' → ' + text.split(' ').reverse().join(' ');
+    if (m === 'spiral') return text.split(' ').map((w,i) => w.repeat(i%3+1)).join(' ');
+    if (m === 'mirror') return text + ' | ' + text;
+    return text;
+  }
+
+  transformMemory(input) {
+    if (!CONFIG.engine.memoryTransforms) return input;
+    this.memory.push(input);
+    if (this.memory.length > 10) this.memory.shift();
+    return input.toLowerCase().replace(/\b(i|me|my)\b/g, 'we');
+  }
+
+  checkNovelty(text) {
+    if (!this.noveltyGuard) return true;
+    const seen = this.memory.some(m => m.includes(text));
+    return !seen;
+  }
 }
 
 // === EMPATHY LAYER (stub for Commit 3/3) ===
