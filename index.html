@@ -1,29 +1,40 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#050505" />
-  <title>JesseOS v0.3</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#020702">
+  <meta name="description" content="JesseOS — a local, offline-first dream terminal.">
+  <title>JesseOS v0.4</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main id="crt" aria-label="JesseOS terminal">
-    <section id="screen">
-      <header id="status" aria-live="polite">
-        <span>JESSEOS v0.3</span>
-        <span id="engine-status">LOCAL DREAM ENGINE</span>
-        <span id="typing-status">READY</span>
-      </header>
-      <div id="output" role="log" aria-live="polite" aria-relevant="additions"></div>
-      <form id="input-line" autocomplete="off">
-        <label id="prompt" for="input">jesseos@lobster-box:~$</label>
-        <input id="input" type="text" inputmode="text" autocapitalize="sentences" spellcheck="false" enterkeyhint="send" aria-label="Message JesseOS" />
-      </form>
-      <div id="scanlines" aria-hidden="true"></div>
-      <div id="glow" aria-hidden="true"></div>
-    </section>
+  <main class="terminal-shell" aria-label="JesseOS terminal">
+    <header class="terminal-header">
+      <span>JESSEOS v0.4</span>
+      <span id="status" aria-live="polite">BOOTING...</span>
+    </header>
+
+    <section id="transcript" class="transcript" aria-live="polite" aria-label="Terminal output"></section>
+
+    <form id="input-form" class="input-row" autocomplete="off">
+      <label class="prompt" for="input">jesseos@lobster-box:~$</label>
+      <input
+        id="input"
+        name="input"
+        type="text"
+        inputmode="text"
+        enterkeyhint="send"
+        autocomplete="off"
+        autocapitalize="sentences"
+        spellcheck="true"
+        aria-label="Message JesseOS"
+      >
+      <button id="send" type="submit" aria-label="Send message">SEND</button>
+      <span id="cursor" class="cursor" aria-hidden="true"></span>
+    </form>
   </main>
+
   <script src="data/corpus.js"></script>
   <script src="app.js"></script>
 </body>
