@@ -1,27 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>JesseOS</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>jesseos v0.3</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="crt">
-    <div id="screen">
-      <div id="output"></div>
-      <div id="input-line">
-        <span id="prompt">jesseos@lobster-box:~$</span>
-        <input id="input" type="text" autocomplete="off" spellcheck="false" />
-      </div>
+  <div id="terminal">
+    <div class="output" id="output">Welcome to jesseos v0.3\nPresence • Deep Engine • Empathy\n\nType a message and press Enter...</div>
+    <div class="input-line">
+      <span>></span>
+      <input type="text" id="input" autofocus>
     </div>
-    <div id="scanlines"></div>
-    <div id="glow"></div>
   </div>
   <script src="data/corpus.js"></script>
   <script src="app.js"></script>
+  <script>
+    const input = document.getElementById('input');
+    const output = document.getElementById('output');
+    
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && input.value.trim()) {
+        const userText = input.value.trim();
+        output.textContent += '\n> ' + userText;
+        const response = jesseos(userText, 'practical');
+        presence.typeWithPresence('\n' + response, output);
+        input.value = '';
+      }
+    });
+    
+    // Initialize engine with corpus
+    engine.train(CORPUS);
+  </script>
 </body>
 </html>

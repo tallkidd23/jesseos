@@ -1,121 +1,53 @@
+/* jesseos v0.3 styles */
 :root {
-  --bg: #050505;
-  --fg: #39ff14; /* electric phosphor green */
-  --fg-dim: #1f990b;
-  --glow: rgba(57, 255, 20, 0.6);
+  --bg: #0a0a0a;
+  --fg: #e0e0e0;
+  --accent: #00ff88;
+  --terminal-font: 'Courier New', monospace;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
-body, html {
-  margin: 0;
-  padding: 0;
-  height: 100%;
+body {
   background: var(--bg);
   color: var(--fg);
-  font-family: 'VT323', 'Courier New', monospace;
-  font-size: 20px;
-  overflow: hidden;
+  font-family: var(--terminal-font);
+  line-height: 1.5;
+  padding: 1rem;
 }
 
-#crt {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-items: center;
-  padding: 2rem;
-}
-
-#screen {
-  position: relative;
-  width: min(900px, 92vw);
-  height: min(70vh, 700px);
-  background: #000;
-  border: 2px solid #111;
-  border-radius: 6px;
-  padding: 1.2rem;
-  overflow: hidden;
-  box-shadow:
-    0 0 0 1px #000 inset,
-    0 0 30px rgba(0,0,0,0.9);
-  z-index: 2;
-}
-
-#output {
-  height: calc(100% - 2.2rem);
-  overflow-y: auto;
-  white-space: pre-wrap;
-  line-height: 1.35;
-  margin-bottom: 0.6rem;
-  text-shadow: 0 0 4px var(--glow), 0 0 10px var(--glow);
-}
-
-#output::-webkit-scrollbar {
-  width: 8px;
-}
-#output::-webkit-scrollbar-thumb {
-  background: #111;
+#terminal {
+  max-width: 800px;
+  margin: 0 auto;
+  border: 1px solid var(--accent);
+  padding: 1rem;
   border-radius: 4px;
+  min-height: 60vh;
 }
 
-#input-line {
+.input-line {
   display: flex;
   gap: 0.5rem;
-  align-items: center;
+  margin-top: 1rem;
 }
 
-#prompt {
-  color: var(--fg);
-  text-shadow: 0 0 4px var(--glow), 0 0 10px var(--glow);
-  white-space: nowrap;
-}
-
-#input {
+.input-line input {
   flex: 1;
   background: transparent;
   border: none;
-  outline: none;
   color: var(--fg);
   font-family: inherit;
-  font-size: inherit;
-  text-shadow: 0 0 4px var(--glow), 0 0 10px var(--glow);
-  caret-color: var(--fg);
+  font-size: 1rem;
+  outline: none;
 }
 
-/* CRT scanlines */
-#scanlines {
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(255,255,255,0.06) 0px,
-    rgba(255,255,255,0.06) 1px,
-    transparent 2px,
-    transparent 4px
-  );
-  pointer-events: none;
-  z-index: 3;
-  mix-blend-mode: overlay;
+.output {
+  white-space: pre-wrap;
+  margin: 1rem 0;
+  color: var(--accent);
 }
 
-/* Subtle bloom / glow overlay */
-#glow {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(57,255,20,0.06) 0%,
-    rgba(0,0,0,0) 70%
-  );
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* Slight text dim for older lines */
-.old-line {
-  color: var(--fg-dim);
-  text-shadow: 0 0 3px rgba(57,255,20,0.4);
+@media (max-width: 600px) {
+  #terminal { font-size: 14px; padding: 0.5rem; }
+  .input-line { flex-direction: column; }
 }
