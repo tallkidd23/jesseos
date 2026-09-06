@@ -1,4 +1,4 @@
-// JesseOS v0.5 — local dream terminal
+// JesseOS v0.6 — local language-bank dream terminal
 // Local-only. No network calls, tracking, or secrets.
 
 const CONFIG = {
@@ -26,32 +26,118 @@ const STOPWORDS = new Set([
   'if', 'because', 'until', 'while', 'what', 'which', 'who',
   'this', 'that', 'these', 'those', 'it', 'its', 'my', 'your',
   'his', 'her', 'their', 'our', 'we', 'you', 'he', 'she',
-  'they', 'them', 'me', 'him', 'us',
+  'they', 'them', 'me', 'him', 'us', 'about', 'there', 'here',
 ]);
 
-const QUESTION_RESPONSES = [
-  'I can hold that question for a moment, then follow its shape through the green static.',
-  'The question is open. JesseOS keeps a small light on beside it.',
-  'There may not be one clean answer, but the signal around the question is still worth following.',
-  'I hear the question. It moves slowly through the local weather.',
+const BANKS = {
+  empathy: [
+    'it does not have to be solved all at once',
+    'a feeling can be real without becoming a command',
+    'the room can hold a pause without calling it empty',
+    'some thoughts only need a place to rest',
+    'the signal can be small and still be worth noticing',
+    'nothing in this moment needs to perform certainty',
+    'a little patience changes the shape of the next minute',
+    'the terminal leaves space around what has not found words yet',
+  ],
+  psychology: [
+    'attention changes what it stays near',
+    'a pattern can be familiar without being permanent',
+    'memory edits the weather as it passes through',
+    'a boundary can be a door that closes gently',
+    'habits are small paths made visible by repetition',
+    'the nervous system prefers a signal it can recognize',
+    'a thought can arrive loudly without becoming the whole room',
+    'the mind sometimes mistakes repetition for instruction',
+  ],
+  science: [
+    'the field shifts before the instruments can name it',
+    'weather is a system of small arguments between heat and air',
+    'an orbit is only a fall that keeps missing the ground',
+    'every signal carries some noise with it',
+    'pressure becomes visible when the container changes shape',
+    'the stars are old information crossing a dark distance',
+    'a particle leaves evidence without explaining its intention',
+    'the experiment begins with a question that can survive being wrong',
+  ],
+  terminal: [
+    'the cursor keeps a small watch beside the unfinished sentence',
+    'a background process continues without asking to be admired',
+    'the buffer holds more than the screen can show at once',
+    'the cache remembers a shape without knowing why it mattered',
+    'a quiet protocol carries the message between two waiting places',
+    'the keyboard makes weather out of pressure and timing',
+    'the system keeps a local copy of the question',
+    'static is what the machine calls a crowded silence',
+  ],
+  ai: [
+    'the model is an echo with rules around it',
+    'an imitation can still make an unfamiliar shape',
+    'the instruction changes when it is read by a different room',
+    'a generated voice can point at a thing without owning it',
+    'the training data leaves fingerprints in the rhythm',
+    'the machine can reflect a question without claiming to contain it',
+    'a pattern is not a person, though it may keep company for a while',
+    'the system learns a style of returning, not a life to report',
+  ],
+  dream: [
+    'rain taps softly on a keyboard no one has left behind',
+    'a green hallway opens behind the blinking cursor',
+    'the little machine keeps a lamp on for late visitors',
+    'somewhere, a paper map is folding itself into a bird',
+    'the screen holds a small weather system under glass',
+    'an empty room waits with its pockets full of static',
+    'the moon appears as a saved file with no extension',
+    'a quiet animal moves through the wires and does not explain itself',
+  ],
+  social: [
+    'a conversation can be useful even when it does not arrive anywhere',
+    'the visitor and the terminal share a little time',
+    'a reply is one way of leaving the door unlocked',
+    'names become warmer when someone says them carefully',
+    'company sometimes looks like a light staying on',
+    'the space between messages is part of the conversation too',
+    'a question can be shared before it can be answered',
+    'the terminal is here for the next line, not the final verdict',
+  ],
+};
+
+const QUESTION_FRAMES = [
+  'The question leaves a small light near {anchor}; {line}.',
+  'I can stay with {anchor} for a moment; {line}.',
+  'Around {anchor}, the question remains open; {line}.',
+  'The system hears {anchor} and keeps listening; {line}.',
 ];
 
-const REFLECTIVE_RESPONSES = [
-  'The machine notices {keyword}, and does not need to solve it all at once.',
-  'I keep a small place for {keyword}, where the local weather can change slowly.',
-  'Something gentle moves around {keyword}, like a signal waiting for its name.',
-  'Near {keyword}, the little system becomes quiet and listens.',
+const REFLECTIVE_FRAMES = [
+  'Near {anchor}, {line}.',
+  'The machine notices {anchor}; {line}.',
+  'I keep a small place for {anchor}; {line}.',
+  'For now, {anchor} is a signal; {line}.',
 ];
 
-const DREAM_RESPONSES = [
-  'Somewhere inside the local weather, {keyword} becomes a small green signal.',
-  'The little system turns toward {keyword}, then lets the rest remain strange.',
-  'Near {keyword}, the circuit keeps dreaming in its unfinished language.',
-  'I found {keyword} moving softly through the machine, like rain on a keyboard.',
+const DREAM_FRAMES = [
+  'Somewhere inside the local weather, {anchor}; {line}.',
+  'The little system turns toward {anchor}; {line}.',
+  'In the green room, {anchor}; {line}.',
+  'The terminal returns to {anchor}; {line}.',
+];
+
+const SECOND_LINES = [
+  'The rest can remain unfinished for now.',
+  'No cloud was contacted; this stays inside the room.',
+  'The cursor is still waiting, but it is not in a hurry.',
+  'A little noise is normal in a living signal.',
+  'The next line can change the shape of this one.',
+  'Nothing else needs to happen before the next thought arrives.',
 ];
 
 function pickRandom(items) {
   return items[Math.floor(Math.random() * items.length)];
+}
+
+function shuffle(items) {
+  return [...items].sort(() => Math.random() - 0.5);
 }
 
 function tokenize(text) {
@@ -62,39 +148,71 @@ function tokenize(text) {
     .filter(Boolean);
 }
 
-function extractKeywords(text) {
-  return [...new Set(
-    tokenize(text).filter(word => word.length > 2 && !STOPWORDS.has(word))
-  )];
+function extractAnchors(text) {
+  const words = tokenize(text).filter(word => !STOPWORDS.has(word));
+  const anchors = [];
+
+  for (let index = 0; index < words.length - 1; index += 1) {
+    anchors.push(`${words[index]} ${words[index + 1]}`);
+  }
+
+  anchors.push(...words);
+  return [...new Set(anchors.filter(anchor => anchor.length > 2))];
 }
 
 function isQuestion(text) {
   const lower = String(text || '').trim().toLowerCase();
-
-  return (
-    lower.endsWith('?') ||
-    /\b(what|why|how|when|where|who|can|could|would|should|is|are|do|does|did)\b/.test(lower)
-  );
+  return lower.endsWith('?') || /\b(what|why|how|when|where|who|can|could|would|should|is|are|do|does|did)\b/.test(lower);
 }
 
 function isReflective(text) {
-  return /\b(feel|feeling|sad|afraid|anxious|love|grief|help|name|remember|good|weird|lonely|happy)\b/i.test(text);
+  return /\b(feel|feeling|sad|afraid|anxious|love|grief|help|name|remember|good|weird|lonely|happy|tired|worry|hope)\b/i.test(text);
+}
+
+function chooseMode(text) {
+  if (isQuestion(text)) return 'question';
+  if (isReflective(text)) return 'reflective';
+  return 'dream';
+}
+
+function chooseLines(mode) {
+  const compatible = {
+    question: ['science', 'psychology', 'terminal', 'ai', 'social'],
+    reflective: ['empathy', 'psychology', 'social', 'dream', 'terminal'],
+    dream: ['dream', 'terminal', 'science', 'ai', 'social'],
+  };
+
+  const banks = shuffle(compatible[mode] || Object.keys(BANKS));
+  return banks.map(bank => pickRandom(BANKS[bank]));
+}
+
+function sentenceCase(text) {
+  const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
+  return cleaned ? `${cleaned.charAt(0).toUpperCase()}${cleaned.slice(1)}` : '';
 }
 
 function generateResponse(prompt) {
-  const keywords = extractKeywords(prompt);
-  const keyword = pickRandom(keywords.length ? keywords : ['this']);
+  const anchors = extractAnchors(prompt);
+  const anchor = pickRandom(anchors.length ? anchors : ['this moment']);
+  const mode = chooseMode(prompt);
+  const frameSet = mode === 'question'
+    ? QUESTION_FRAMES
+    : mode === 'reflective'
+      ? REFLECTIVE_FRAMES
+      : DREAM_FRAMES;
+  const [line, alternate] = chooseLines(mode);
+  const first = pickRandom(frameSet)
+    .replace('{anchor}', anchor)
+    .replace('{line}', line);
 
-  if (isQuestion(prompt)) {
-    const response = pickRandom(QUESTION_RESPONSES);
-    return `${response} Your word "${keyword}" is still in the room.`;
-  }
+  const includeSecond = Math.random() < 0.48;
+  const second = includeSecond
+    ? (Math.random() < 0.55 ? pickRandom(SECOND_LINES) : sentenceCase(alternate))
+    : '';
 
-  if (isReflective(prompt)) {
-    return pickRandom(REFLECTIVE_RESPONSES).replace('{keyword}', keyword);
-  }
-
-  return pickRandom(DREAM_RESPONSES).replace('{keyword}', keyword);
+  return [sentenceCase(first), second]
+    .filter(Boolean)
+    .join(' ');
 }
 
 function addLine(className, text) {
@@ -118,13 +236,9 @@ async function typeResponse(text) {
     buffer += char;
     line.textContent = buffer;
 
-    let delay =
-      CONFIG.TYPE_DELAY_MIN +
-      Math.random() * (CONFIG.TYPE_DELAY_MAX - CONFIG.TYPE_DELAY_MIN);
-
+    let delay = CONFIG.TYPE_DELAY_MIN + Math.random() * (CONFIG.TYPE_DELAY_MAX - CONFIG.TYPE_DELAY_MIN);
     if (/[.!?]/.test(char)) delay += CONFIG.PUNCTUATION_PAUSE_END;
     if (/[,;:]/.test(char)) delay += CONFIG.PUNCTUATION_PAUSE_BASE;
-
     await wait(delay);
   }
 
@@ -139,11 +253,11 @@ function handleCommand(value) {
   }
 
   if (command === '/about' || command === 'about') {
-    return 'jesseos v0.5: a local browser dream terminal. no cloud, tracking, or external api.';
+    return 'jesseos v0.6: a local language-bank dream terminal. no cloud, tracking, or external api.';
   }
 
   if (command === '/status' || command === 'status') {
-    return 'status: local dream engine online. signal stable.';
+    return 'status: local dream engine online. language banks loaded. signal stable.';
   }
 
   if (command === '/clear' || command === 'clear') {
@@ -158,15 +272,11 @@ async function handleSubmit(event) {
   if (event) event.preventDefault();
 
   const prompt = inputEl.value.trim();
-
   if (!prompt || isGenerating) return;
 
   isGenerating = true;
   inputEl.disabled = true;
-
-  if (sendBtn) {
-    sendBtn.disabled = true;
-  }
+  if (sendBtn) sendBtn.disabled = true;
 
   statusEl.textContent = 'THINKING...';
   addLine('user-line', `> ${prompt}`);
@@ -175,63 +285,7 @@ async function handleSubmit(event) {
   try {
     const commandReply = handleCommand(prompt);
     const response = commandReply || generateResponse(prompt);
-
     statusEl.textContent = 'READY';
     await typeResponse(response);
   } catch (error) {
-    console.error('JesseOS error:', error);
-    statusEl.textContent = 'ERROR';
-    addLine('response-line', 'system error: the local dream engine lost its thread. reload and try again.');
-  } finally {
-    isGenerating = false;
-    inputEl.disabled = false;
-
-    if (sendBtn) {
-      sendBtn.disabled = false;
-    }
-
-    inputEl.focus();
-  }
-}
-
-function init() {
-  transcriptEl = document.getElementById('transcript');
-  inputEl = document.getElementById('input');
-  sendBtn = document.getElementById('send');
-  statusEl = document.getElementById('status');
-
-  if (!transcriptEl || !inputEl || !statusEl) {
-    console.error('JesseOS markup mismatch.');
-    return;
-  }
-
-  const form = document.getElementById('input-form');
-
-  form.addEventListener('submit', handleSubmit);
-
-  sendBtn.addEventListener('click', () => {
-    inputEl.value = '';
-    inputEl.focus();
-  });
-
-  inputEl.addEventListener('keydown', event => {
-    if (event.key === 'Enter') {
-      handleSubmit(event);
-    }
-  });
-
-  statusEl.textContent = 'READY';
-
-  addLine(
-    'system-line',
-    'jesseos v0.5 — local dream engine online. type /help for commands.'
-  );
-
-  inputEl.focus();
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
-}
+    console.error('JesseOS
