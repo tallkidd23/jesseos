@@ -1,42 +1,148 @@
 <!doctype html>
-<!-- Pages rebuild marker -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#020702">
+  <meta name="theme-color" content="#180508">
   <meta name="description" content="JesseOS — a local, offline-first dream terminal.">
-  <title>JesseOS v0.6</title>
+  <title>JesseOS v0.6 — LBSTRCOMP</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="terminal-shell" aria-label="JesseOS terminal">
-    <header class="terminal-header">
-      <span>JESSEOS v0.6</span>
-      <span id="status" aria-live="polite">BOOTING...</span>
-    </header>
+  <main class="room" aria-label="JesseOS LBSTRCOMP workstation">
+    <div class="wall-glow" aria-hidden="true"></div>
 
-    <section id="transcript" class="transcript" aria-live="polite" aria-label="Terminal output"></section>
+    <section class="desk">
+      <section class="monitor" aria-label="LBSTRCOMP monitor">
+        <div class="monitor-vent" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
 
-    <form id="input-form" class="input-row" autocomplete="off">
-      <label class="prompt" for="input">input/</label>
-      <input
-        id="input"
-        name="input"
-        type="text"
-        inputmode="text"
-        enterkeyhint="send"
-        autocomplete="off"
-        autocapitalize="sentences"
-        spellcheck="true"
-        aria-label="Message JesseOS"
-      >
-      <button id="send" type="button" aria-label="Erase input" title="Erase input">⌫</button>
-      <span id="cursor" class="cursor" aria-hidden="true"></span>
-    </form>
+        <div class="screen-bezel">
+          <div class="screen-glass">
+            <main class="terminal-shell" aria-label="JesseOS terminal">
+              <header class="terminal-header">
+                <span>JESSEOS v0.6</span>
+                <span id="status" aria-live="polite">BOOTING...</span>
+              </header>
+
+              <section
+                id="transcript"
+                class="transcript"
+                aria-live="polite"
+                aria-label="Terminal output"
+              ></section>
+
+              <form id="input-form" class="input-row" autocomplete="off">
+                <label class="prompt" for="input">input/</label>
+                <input
+                  id="input"
+                  name="input"
+                  type="text"
+                  inputmode="text"
+                  enterkeyhint="send"
+                  autocomplete="off"
+                  autocapitalize="sentences"
+                  spellcheck="true"
+                  aria-label="Message JesseOS"
+                >
+                <button
+                  id="send"
+                  type="button"
+                  aria-label="Erase input"
+                  title="Erase input"
+                >⌫</button>
+                <span id="cursor" class="cursor" aria-hidden="true"></span>
+              </form>
+            </main>
+          </div>
+        </div>
+
+        <footer class="monitor-lower-bezel">
+          <span class="brand">LBSTRCOMP</span>
+
+          <span class="power-cluster" aria-label="Power on">
+            <span class="power-led" aria-hidden="true"></span>
+            <span class="power-label">POWER</span>
+          </span>
+        </footer>
+
+        <div class="monitor-foot" aria-hidden="true"></div>
+      </section>
+
+      <section class="keyboard" aria-label="Decorative LBSTRCOMP keyboard" aria-hidden="true">
+        <div class="key-row row-one">
+          <span class="key key-red">ESC</span>
+          <span class="key">1</span>
+          <span class="key">2</span>
+          <span class="key">3</span>
+          <span class="key">4</span>
+          <span class="key">5</span>
+          <span class="key">6</span>
+          <span class="key">7</span>
+          <span class="key">8</span>
+          <span class="key">9</span>
+          <span class="key">0</span>
+          <span class="key key-wide">DEL</span>
+        </div>
+
+        <div class="key-row">
+          <span class="key key-tab">TAB</span>
+          <span class="key">Q</span>
+          <span class="key">W</span>
+          <span class="key">E</span>
+          <span class="key">R</span>
+          <span class="key">T</span>
+          <span class="key">Y</span>
+          <span class="key">U</span>
+          <span class="key">I</span>
+          <span class="key">O</span>
+          <span class="key">P</span>
+          <span class="key">+</span>
+        </div>
+
+        <div class="key-row">
+          <span class="key key-caps">CTRL</span>
+          <span class="key">A</span>
+          <span class="key">S</span>
+          <span class="key">D</span>
+          <span class="key">F</span>
+          <span class="key">G</span>
+          <span class="key">H</span>
+          <span class="key">J</span>
+          <span class="key">K</span>
+          <span class="key">L</span>
+          <span class="key">:</span>
+          <span class="key key-return">RETURN</span>
+        </div>
+
+        <div class="key-row">
+          <span class="key key-shift">SHIFT</span>
+          <span class="key">Z</span>
+          <span class="key">X</span>
+          <span class="key">C</span>
+          <span class="key">V</span>
+          <span class="key">B</span>
+          <span class="key">N</span>
+          <span class="key">M</span>
+          <span class="key">,</span>
+          <span class="key">.</span>
+          <span class="key key-shift">SHIFT</span>
+        </div>
+
+        <div class="key-row bottom-row">
+          <span class="key key-red key-small">RUN</span>
+          <span class="key key-red key-small">STOP</span>
+          <span class="key key-space">SPACE</span>
+          <span class="key key-small">F1</span>
+          <span class="key key-small">F3</span>
+          <span class="key key-small">F5</span>
+          <span class="key key-small">F7</span>
+        </div>
+      </section>
+    </section>
   </main>
 
   <script src="app.js"></script>
 </body>
 </html>
-
