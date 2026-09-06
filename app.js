@@ -289,7 +289,9 @@ function init() {
   }
 
   const form = document.getElementById('input-form');
+  if (form) {
   form.addEventListener('submit', handleSubmit);
+}
 
   if (sendBtn) {
     sendBtn.addEventListener('click', () => {
