@@ -241,7 +241,7 @@ body {
   }
 
   #send {
-    display: none;
+    display: block;
   }
 }
 
