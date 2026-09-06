@@ -1,8 +1,14 @@
 :root {
+  color-scheme: dark;
+  --bg: #020702;
+  --panel: #031006;
   --ink: #68ff77;
   --ink-dim: #32b744;
+  --line: #24df3e;
+  --glow: rgba(65, 255, 89, 0.52);
   --glow-core: rgba(118, 255, 133, 0.70);
   --glow-halo: rgba(40, 255, 75, 0.20);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 body {
@@ -28,7 +34,14 @@ body {
   overflow: hidden;
   background: #000;
 }
-
+body {
+  min-height: 100%;
+  color: var(--ink);
+  font-family: "JesseOS C64", "Courier New", monospace;
+  text-shadow:
+    0 0 2px var(--glow-core),
+    0 0 7px var(--glow-halo);
+}
 @font-face {
   font-family: "JesseOS C64";
   src: url("C64_Pro-STYLE.woff2") format("woff2");
@@ -83,9 +96,27 @@ body {
 
 #transcript,
 .transcript {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  padding: 1.25rem 1.5rem 2rem;
+  scrollbar-color: var(--ink-dim) var(--bg);
+  color: var(--ink);
   font-size: clamp(1.15rem, 4.8vw, 1.45rem);
   line-height: 1.62;
   letter-spacing: 0.035em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-shadow:
+    0 0 2px var(--glow-core),
+    0 0 7px var(--glow-halo);
 }
 
 .input-row {
@@ -145,8 +176,9 @@ body {
   caret-color: var(--ink);
   font: inherit;
   line-height: 1.4;
-  text-shadow: 0 0 8px var(--glow);
-}
+  text-shadow:
+  0 0 2px var(--glow-core),
+  0 0 7px var(--glow-halo);
 
 #input:disabled {
   opacity: 0.6;
@@ -184,10 +216,12 @@ body {
   }
 }
 
-@media (max-width: 620px) {
-  .terminal-header {
-    padding: 0.85rem 1rem;
+@media (prefers-reduced-motion: reduce) {
+  .cursor,
+  .terminal-shell::after {
+    animation: none;
   }
+}
 
   #transcript,
   .transcript {
@@ -210,5 +244,50 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .cursor {
     animation: none;
+  }
+}
+.terminal-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(126, 255, 139, 0.045) 0,
+      rgba(126, 255, 139, 0.045) 1px,
+      transparent 2px,
+      transparent 4px
+    );
+  animation: crt-modulation 23s infinite;
+}
+
+@keyframes crt-modulation {
+  0%,
+  92%,
+  100% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+
+  93% {
+    opacity: 0.10;
+    transform: translateY(-1px);
+  }
+
+  94% {
+    opacity: 0.035;
+    transform: translateY(1px);
+  }
+
+  95% {
+    opacity: 0.07;
+    transform: translateY(0);
+  }
+
+  96% {
+    opacity: 0;
   }
 }
