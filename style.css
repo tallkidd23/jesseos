@@ -181,8 +181,13 @@ body {
   font: inherit;
   line-height: 1.4;
   text-shadow:
-  0 0 2px var(--glow-core),
-  0 0 7px var(--glow-halo);
+    0 0 2px var(--glow-core),
+    0 0 7px var(--glow-halo);
+}
+
+#input:disabled {
+  opacity: 0.6;
+}
 
 #input:disabled {
   opacity: 0.6;
