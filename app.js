@@ -1,16 +1,19 @@
-// JesseOS v0.4 - Free-association dream engine
+// JesseOS v0.5 - Prompt-aware local dream engine
 // Local-only, no network calls, no tracking, no secrets
 
 const CONFIG = {
   MEMORY_EXCHANGE_LIMIT: 80,
-  MAX_RESPONSE_SENTENCES: 4,
+  MAX_RESPONSE_SENTENCES: 3,
   MIN_RESPONSE_SENTENCES: 2,
-  ASSOCIATIVE_JUMP_PROBABILITY: 0.10,
+  ASSOCIATIVE_JUMP_PROBABILITY: 0.12,
   TYPE_DELAY_MIN: 20,
   TYPE_DELAY_MAX: 50,
   PUNCTUATION_PAUSE_BASE: 80,
   PUNCTUATION_PAUSE_END: 150,
   BACKSPACE_PROBABILITY: 0.02,
+  MIN_CLAUSE_WORDS: 7,
+  MAX_CLAUSE_WORDS: 13,
+  MAX_RESPONSE_WORDS: 58,
 };
 
 let transcriptEl, inputEl, sendBtn, statusEl, cursorEl;
@@ -19,17 +22,26 @@ let markov2 = {};
 let markov3 = {};
 let isGenerating = false;
 
+const STOPWORDS = new Set(['i','am','a','an','the','is','are','was','were','be','been','being','have','has','had','do','does','did','will','would','could','should','may','might','must','can','need','to','of','in','for','on','with','at','by','from','as','into','through','during','before','after','when','where','why','how','all','each','more','most','other','some','no','not','only','so','than','too','very','just','also','now','and','but','or','if','because','until','while','what','which','who','this','that','these','those','it','its','my','your','his','her','their','our','we','you','he','she','they','them','me','him','us']);
+const BRIDGES = ['and', 'but', 'while', 'because', 'although', 'so', 'as', 'where'];
+const QUESTION_LEADS = ['the question stays open while', 'i can follow the question through', 'something in the question remembers'];
+const REFLECTIVE_LEADS = ['i keep a small place for', 'the machine notices', 'there is a quiet signal around'];
+const DREAM_LEADS = ['somewhere inside the local weather', 'the little system keeps dreaming of', 'a soft circuit turns toward'];
+
 function tokenize(text) {
   return String(text || '').toLowerCase().replace(/[^a-z0-9\s'\-]/g, '').split(/\s+/).filter(Boolean);
 }
 
 function extractKeywords(text) {
-  const stopwords = new Set(['i','am','a','an','the','is','are','was','were','be','been','being','have','has','had','do','does','did','will','would','could','should','may','might','must','can','need','to','of','in','for','on','with','at','by','from','as','into','through','during','before','after','when','where','why','how','all','each','more','most','other','some','no','not','only','so','than','too','very','just','also','now','and','but','or','if','because','until','while','what','which','who','this','that','these','those','it','its','my','your','his','her','their','our','we','you','he','she','they','them','me','him','us']);
-  return tokenize(text).filter(word => word.length > 2 && !stopwords.has(word));
+  return tokenize(text).filter(word => word.length > 2 && !STOPWORDS.has(word));
 }
 
 function pickRandom(items) {
   return items && items.length ? items[Math.floor(Math.random() * items.length)] : null;
+}
+
+function unique(items) {
+  return [...new Set(items.filter(Boolean))];
 }
 
 function sentenceSplit(text) {
@@ -60,39 +72,108 @@ function trainMultiOrder(corpus) {
   }
 }
 
+function chooseLead(prompt, keywords) {
+  const lower = String(prompt || '').toLowerCase();
+  if (/[?]$/.test(lower) || /\b(what|why|how|when|where|who|can|could|would|should)\b/.test(lower)) return pickRandom(QUESTION_LEADS);
+  if (/\b(feel|feeling|sad|afraid|anxious|love|grief|help|name|remember)\b/.test(lower)) return pickRandom(REFLECTIVE_LEADS);
+  return pickRandom(DREAM_LEADS);
+}
+
+function cleanWord(word) {
+  return String(word || '').replace(/[^a-z0-9'\-]/gi, '');
+}
+
+function chooseNextWord(words, current, keywords, recentWords) {
+  const pair = words.length > 1 ? `${words[words.length - 2]} ${words[words.length - 1]}` : '';
+  const candidates = unique([
+    ...(markov3[pair] || []),
+    ...(markov2[current] || []),
+    ...keywords.filter(word => markov2[word]?.length),
+  ]).map(cleanWord).filter(Boolean);
+
+  const fresh = candidates.filter(word => !recentWords.includes(word));
+  return pickRandom(fresh.length ? fresh : candidates) || pickRandom(Object.keys(markov1));
+}
+
+function punctuateClause(words, sentenceCount, forceEnd = false) {
+  const lastIndex = words.length - 1;
+  const last = words[lastIndex];
+  if (!last) return;
+
+  if (forceEnd || sentenceCount >= CONFIG.MAX_RESPONSE_SENTENCES - 1) {
+    words[lastIndex] = `${last}.`;
+    return;
+  }
+
+  const bridge = pickRandom(BRIDGES);
+  if (bridge && last !== bridge) words.push(bridge);
+  else words[lastIndex] = `${last},`;
+}
+
 function generatePromptSeeded(prompt) {
   const keywords = extractKeywords(prompt);
   const allStates = Object.keys(markov2);
-  let current = keywords.find(word => markov2[word]?.length) || pickRandom(allStates);
-  if (!current) return 'i am still learning. leave me another thought.';
+  const lead = chooseLead(prompt, keywords);
+  const leadWords = tokenize(lead);
+  const seed = keywords.find(word => markov2[word]?.length) || pickRandom(allStates);
+  if (!seed) return 'I am still learning, leave me another thought.';
 
-  const words = [current];
-  let sentenceWords = 1;
+  const words = [...leadWords, seed];
+  let current = seed;
+  let clauseWords = 1;
   let sentences = 0;
+  let usedKeyword = keywords.includes(seed);
 
-  while (sentences < CONFIG.MAX_RESPONSE_SENTENCES && words.length < 62) {
-    if (keywords.length && Math.random() < CONFIG.ASSOCIATIVE_JUMP_PROBABILITY) {
-      const jump = pickRandom(keywords.filter(word => markov2[word]?.length));
-      if (jump) current = jump;
+  while (words.length < CONFIG.MAX_RESPONSE_WORDS && sentences < CONFIG.MAX_RESPONSE_SENTENCES) {
+    if (keywords.length && !usedKeyword && clauseWords >= 3) {
+      const keyword = pickRandom(keywords.filter(word => markov2[word]?.length && word !== current));
+      if (keyword) {
+        words.push(keyword);
+        current = keyword;
+        usedKeyword = true;
+        clauseWords += 1;
+        continue;
+      }
     }
 
-    const pair = words.length > 1 ? `${words[words.length - 2]} ${words[words.length - 1]}` : '';
-    const next = pickRandom(markov3[pair]) || pickRandom(markov2[current]) || pickRandom(Object.keys(markov1));
+    if (keywords.length && Math.random() < CONFIG.ASSOCIATIVE_JUMP_PROBABILITY && clauseWords > 4) {
+      const jump = pickRandom(keywords.filter(word => markov2[word]?.length && word !== current));
+      if (jump) {
+        words.push(jump);
+        current = jump;
+        usedKeyword = true;
+        clauseWords += 1;
+        continue;
+      }
+    }
+
+    const recentWords = words.slice(-5);
+    const next = chooseNextWord(words, current, keywords, recentWords);
     if (!next) break;
     words.push(next);
     current = next;
-    sentenceWords += 1;
+    clauseWords += 1;
 
-    if (sentenceWords >= 8 + Math.floor(Math.random() * 7)) {
-      words[words.length - 1] += '.';
+    const minimumReached = clauseWords >= CONFIG.MIN_CLAUSE_WORDS;
+    const shouldPause = minimumReached && (clauseWords >= CONFIG.MAX_CLAUSE_WORDS || Math.random() < 0.12);
+    if (!shouldPause) continue;
+
+    const shouldEnd = sentences >= CONFIG.MIN_RESPONSE_SENTENCES - 1 && (Math.random() < 0.45 || words.length > 42);
+    punctuateClause(words, sentences, shouldEnd);
+    if (shouldEnd) {
       sentences += 1;
-      sentenceWords = 0;
-      if (sentences >= CONFIG.MIN_RESPONSE_SENTENCES && Math.random() > 0.6) break;
+      break;
     }
+    clauseWords = 0;
   }
 
-  if (!/[.!?]$/.test(words[words.length - 1])) words[words.length - 1] += '.';
-  const answer = words.join(' ');
+  const finalWord = words[words.length - 1] || '';
+  if (!/[.!?]$/.test(finalWord)) {
+    if (/[,;:]$/.test(finalWord)) words[words.length - 1] = finalWord.slice(0, -1);
+    words[words.length - 1] = `${words[words.length - 1]}.`;
+  }
+
+  const answer = words.join(' ').replace(/\s+([,.!?;:])/g, '$1');
   return answer.charAt(0).toUpperCase() + answer.slice(1);
 }
 
@@ -150,7 +231,7 @@ async function clearMemory() {
 async function handleCommand(value) {
   const command = value.trim().toLowerCase();
   if (command === '/help' || command === 'help') return 'commands: /help, /about, /status, /memory, /clear';
-  if (command === '/about' || command === 'about') return 'jesseos v0.4: a local browser dream engine. no cloud, tracking, or external api.';
+  if (command === '/about' || command === 'about') return 'jesseos v0.5: a local browser dream engine. no cloud, tracking, or external api.';
   if (command === '/status' || command === 'status') return `model: ${Object.keys(markov1).length} words, ${Object.keys(markov2).length} pairs, ${Object.keys(markov3).length} triples | corpus: ${(window.JESSEOS_CORPUS || []).length} lines.`;
   if (command === '/memory' || command === 'memory') {
     const recent = await getRecentExchanges(5);
@@ -242,16 +323,16 @@ function init() {
   const form = document.getElementById('input-form');
   form?.addEventListener('submit', handleSubmit);
   sendBtn?.addEventListener('click', () => {
-  inputEl.value = '';
-  inputEl.focus();
-});
+    inputEl.value = '';
+    inputEl.focus();
+  });
   inputEl.addEventListener('keydown', event => {
     if (event.key === 'Enter') handleSubmit(event);
   });
 
   trainMultiOrder(window.JESSEOS_CORPUS || []);
   statusEl.textContent = 'READY';
-  addLine('system-line', 'jesseos v0.4 — local dream engine online. type /help for commands.');
+  addLine('system-line', 'jesseos v0.5 — local dream engine online. type /help for commands.');
   inputEl.focus();
 }
 
