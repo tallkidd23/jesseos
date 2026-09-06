@@ -241,7 +241,10 @@ function init() {
 
   const form = document.getElementById('input-form');
   form?.addEventListener('submit', handleSubmit);
-  sendBtn?.addEventListener('click', handleSubmit);
+  sendBtn?.addEventListener('click', () => {
+  inputEl.value = '';
+  inputEl.focus();
+});
   inputEl.addEventListener('keydown', event => {
     if (event.key === 'Enter') handleSubmit(event);
   });
