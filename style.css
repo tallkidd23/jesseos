@@ -10,7 +10,11 @@
   --glow-halo: rgba(40, 255, 75, 0.20);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
-
+@font-face {
+  font-family: "JesseOS C64";
+  src: url("C64_Pro-STYLE.woff2") format("woff2");
+  font-display: swap;
+}
 body {
   text-shadow:
     0 0 2px var(--glow-core),
@@ -290,4 +294,14 @@ body {
   96% {
     opacity: 0;
   }
+}
+body,
+.terminal-shell,
+#transcript,
+.transcript,
+.terminal-header,
+.input-row,
+#input,
+#send {
+  font-family: "JesseOS C64", "Courier New", monospace;
 }
