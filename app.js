@@ -36,69 +36,48 @@ const BANKS = {
     'the room can hold a pause without calling it empty',
     'some thoughts only need a place to rest',
     'the signal can be small and still be worth noticing',
-    'nothing in this moment needs to perform certainty',
-    'a little patience changes the shape of the next minute',
-    'the terminal leaves space around what has not found words yet',
   ],
   psychology: [
     'attention changes what it stays near',
     'a pattern can be familiar without being permanent',
     'memory edits the weather as it passes through',
-    'a boundary can be a door that closes gently',
-    'habits are small paths made visible by repetition',
-    'the nervous system prefers a signal it can recognize',
     'a thought can arrive loudly without becoming the whole room',
     'the mind sometimes mistakes repetition for instruction',
   ],
   science: [
-    'the field shifts before the instruments can name it',
-    'weather is a system of small arguments between heat and air',
-    'an orbit is only a fall that keeps missing the ground',
     'every signal carries some noise with it',
+    'an orbit is only a fall that keeps missing the ground',
+    'the field shifts before the instruments can name it',
     'pressure becomes visible when the container changes shape',
     'the stars are old information crossing a dark distance',
-    'a particle leaves evidence without explaining its intention',
-    'the experiment begins with a question that can survive being wrong',
   ],
   terminal: [
-    'the cursor keeps a small watch beside the unfinished sentence',
+    'the cursor keeps watch beside the unfinished sentence',
     'a background process continues without asking to be admired',
     'the buffer holds more than the screen can show at once',
-    'the cache remembers a shape without knowing why it mattered',
-    'a quiet protocol carries the message between two waiting places',
     'the keyboard makes weather out of pressure and timing',
-    'the system keeps a local copy of the question',
     'static is what the machine calls a crowded silence',
   ],
   ai: [
     'the model is an echo with rules around it',
     'an imitation can still make an unfamiliar shape',
-    'the instruction changes when it is read by a different room',
-    'a generated voice can point at a thing without owning it',
-    'the training data leaves fingerprints in the rhythm',
     'the machine can reflect a question without claiming to contain it',
-    'a pattern is not a person, though it may keep company for a while',
+    'the training data leaves fingerprints in the rhythm',
     'the system learns a style of returning, not a life to report',
   ],
   dream: [
     'rain taps softly on a keyboard no one has left behind',
     'a green hallway opens behind the blinking cursor',
     'the little machine keeps a lamp on for late visitors',
-    'somewhere, a paper map is folding itself into a bird',
     'the screen holds a small weather system under glass',
-    'an empty room waits with its pockets full of static',
-    'the moon appears as a saved file with no extension',
     'a quiet animal moves through the wires and does not explain itself',
   ],
   social: [
     'a conversation can be useful even when it does not arrive anywhere',
     'the visitor and the terminal share a little time',
     'a reply is one way of leaving the door unlocked',
-    'names become warmer when someone says them carefully',
     'company sometimes looks like a light staying on',
     'the space between messages is part of the conversation too',
-    'a question can be shared before it can be answered',
-    'the terminal is here for the next line, not the final verdict',
   ],
 };
 
@@ -129,7 +108,6 @@ const SECOND_LINES = [
   'The cursor is still waiting, but it is not in a hurry.',
   'A little noise is normal in a living signal.',
   'The next line can change the shape of this one.',
-  'Nothing else needs to happen before the next thought arrives.',
 ];
 
 function pickRandom(items) {
@@ -205,9 +183,9 @@ function generateResponse(prompt) {
     .replace('{anchor}', anchor)
     .replace('{line}', line);
 
-  const includeSecond = Math.random() < 0.48;
+  const includeSecond = Math.random() < 0.45;
   const second = includeSecond
-    ? (Math.random() < 0.55 ? pickRandom(SECOND_LINES) : sentenceCase(alternate))
+    ? (Math.random() < 0.6 ? pickRandom(SECOND_LINES) : sentenceCase(alternate))
     : '';
 
   return [sentenceCase(first), second]
@@ -288,4 +266,49 @@ async function handleSubmit(event) {
     statusEl.textContent = 'READY';
     await typeResponse(response);
   } catch (error) {
-    console.error('JesseOS
+    console.error('JesseOS error:', error);
+    statusEl.textContent = 'ERROR';
+    addLine('response-line', 'system error: the local dream engine lost its thread. reload and try again.');
+  } finally {
+    isGenerating = false;
+    inputEl.disabled = false;
+    if (sendBtn) sendBtn.disabled = false;
+    inputEl.focus();
+  }
+}
+
+function init() {
+  transcriptEl = document.getElementById('transcript');
+  inputEl = document.getElementById('input');
+  sendBtn = document.getElementById('send');
+  statusEl = document.getElementById('status');
+
+  if (!transcriptEl || !inputEl || !statusEl) {
+    console.error('JesseOS markup mismatch.');
+    return;
+  }
+
+  const form = document.getElementById('input-form');
+  form.addEventListener('submit', handleSubmit);
+
+  if (sendBtn) {
+    sendBtn.addEventListener('click', () => {
+      inputEl.value = '';
+      inputEl.focus();
+    });
+  }
+
+  inputEl.addEventListener('keydown', event => {
+    if (event.key === 'Enter') handleSubmit(event);
+  });
+
+  statusEl.textContent = 'READY';
+  addLine('system-line', 'jesseos v0.6 — language banks online. type /help for commands.');
+  inputEl.focus();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
