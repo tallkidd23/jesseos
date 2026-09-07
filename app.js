@@ -1,5 +1,5 @@
-// JesseOS v0.7 — local language-bank dream terminal + weather receiver
-// Weather requests occur only after an explicit /city command.
+// JesseOS v0.8 — local language-bank dream terminal + live receivers
+// Live requests run only after explicit weather/news commands.
 // No geolocation, tracking, API keys, or background polling.
 
 const CONFIG = {
@@ -8,10 +8,33 @@ const CONFIG = {
   PUNCTUATION_PAUSE_BASE: 70,
   PUNCTUATION_PAUSE_END: 130,
   WEATHER_CACHE_MS: 10 * 60 * 1000,
+  NEWS_CACHE_MS: 5 * 60 * 1000,
+  NEWS_MAX_ITEMS: 4,
 };
 
 const WEATHER_CACHE_KEY = 'jesseos-weather-cache-v1';
 const WEATHER_CITY_KEY = 'jesseos-weather-city-v1';
+const NEWS_CACHE_KEY = 'jesseos-news-cache-v1';
+const NEWS_RESULTS_KEY = 'jesseos-news-results-v1';
+
+const NEWS_CHANNELS = {
+  headlines: {
+    label: 'WORLD HEADLINES',
+    query: 'world',
+  },
+  canada: {
+    label: 'CANADIAN NEWS',
+    query: 'Canada',
+  },
+  science: {
+    label: 'SCIENCE',
+    query: 'science',
+  },
+  tech: {
+    label: 'TECHNOLOGY',
+    query: 'technology',
+  },
+};
 
 let transcriptEl;
 let inputEl;
@@ -19,6 +42,7 @@ let statusEl;
 let isGenerating = false;
 let shiftEnabled = false;
 let activeRequestController = null;
+let latestNewsResults = [];
 
 const STOPWORDS = new Set([
   'i', 'am', 'a', 'an', 'the', 'is', 'are', 'was', 'were',
@@ -204,7 +228,7 @@ function addLine(className, text) {
   line.className = className;
   line.textContent = text;
   transcriptEl.appendChild(line);
-  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  scrollTranscriptToBottom();
   return line;
 }
 
@@ -224,58 +248,64 @@ async function typeResponse(text) {
     buffer += char;
     line.textContent = buffer;
 
-    let delay = CONFIG.TYPE_DELAY_MIN + Math.random() * (CONFIG.TYPE_DELAY_MAX - CONFIG.TYPE_DELAY_MIN);
+    let delay = CONFIG.TYPE_DELAY_MIN + Math.random() * (
+      CONFIG.TYPE_DELAY_MAX - CONFIG.TYPE_DELAY_MIN
+    );
+
     if (/[.!?]/.test(char)) delay += CONFIG.PUNCTUATION_PAUSE_END;
     if (/[,;:]/.test(char)) delay += CONFIG.PUNCTUATION_PAUSE_BASE;
+
     await wait(delay);
   }
 
   scrollTranscriptToBottom();
 }
 
-function makeWeatherStatus(text) {
-  const card = document.createElement('div');
-  card.className = 'weather-status response-line';
-  card.textContent = text;
-  transcriptEl.appendChild(card);
-  scrollTranscriptToBottom();
-  return card;
+function addReceiverStatus(className, text) {
+  return addLine(`${className} response-line`, text);
 }
+
+function setReadySoon(delay = 900) {
+  window.setTimeout(() => {
+    if (!isGenerating) statusEl.textContent = 'READY';
+  }, delay);
+}
+
+function cancelActiveRequest() {
+  if (activeRequestController) {
+    activeRequestController.abort();
+    activeRequestController = null;
+  }
+}
+
+async function fetchJson(url, signal) {
+  const response = await fetch(url, {
+    signal,
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Receiver returned ${response.status}.`);
+  }
+
+  return response.json();
+}
+
+/* Weather receiver */
 
 function weatherDetailsForCode(code) {
   const numericCode = Number(code);
 
-  if (numericCode === 0) {
-    return { label: 'CLEAR SKY', icon: 'sun' };
-  }
-
-  if ([1, 2].includes(numericCode)) {
-    return { label: 'PARTLY CLOUDY', icon: 'partly-cloudy' };
-  }
-
-  if (numericCode === 3) {
-    return { label: 'OVERCAST', icon: 'cloud' };
-  }
-
-  if ([45, 48].includes(numericCode)) {
-    return { label: 'FOG', icon: 'fog' };
-  }
-
-  if ([51, 53, 55, 56, 57].includes(numericCode)) {
-    return { label: 'DRIZZLE', icon: 'drizzle' };
-  }
-
-  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(numericCode)) {
-    return { label: 'RAIN', icon: 'rain' };
-  }
-
-  if ([71, 73, 75, 77, 85, 86].includes(numericCode)) {
-    return { label: 'SNOW', icon: 'snow' };
-  }
-
-  if ([95, 96, 99].includes(numericCode)) {
-    return { label: 'THUNDERSTORM', icon: 'storm' };
-  }
+  if (numericCode === 0) return { label: 'CLEAR SKY', icon: 'sun' };
+  if ([1, 2].includes(numericCode)) return { label: 'PARTLY CLOUDY', icon: 'partly-cloudy' };
+  if (numericCode === 3) return { label: 'OVERCAST', icon: 'cloud' };
+  if ([45, 48].includes(numericCode)) return { label: 'FOG', icon: 'fog' };
+  if ([51, 53, 55, 56, 57].includes(numericCode)) return { label: 'DRIZZLE', icon: 'drizzle' };
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(numericCode)) return { label: 'RAIN', icon: 'rain' };
+  if ([71, 73, 75, 77, 85, 86].includes(numericCode)) return { label: 'SNOW', icon: 'snow' };
+  if ([95, 96, 99].includes(numericCode)) return { label: 'THUNDERSTORM', icon: 'storm' };
 
   return { label: 'UNKNOWN SKY', icon: 'cloud' };
 }
@@ -378,8 +408,7 @@ function windDirectionLabel(degrees) {
 
 function roundWeatherValue(value, decimals = 0) {
   const number = Number(value);
-  if (!Number.isFinite(number)) return '—';
-  return number.toFixed(decimals);
+  return Number.isFinite(number) ? number.toFixed(decimals) : '—';
 }
 
 function renderWeatherCard(location, weather) {
@@ -407,12 +436,17 @@ function renderWeatherCard(location, weather) {
 
   const data = document.createElement('div');
   data.className = 'weather-data';
-  data.innerHTML = `
-    <span>HUMIDITY ${roundWeatherValue(current.relative_humidity_2m)}%</span>
-    <span>WIND ${windDirectionLabel(current.wind_direction_10m)} · ${roundWeatherValue(current.wind_speed_10m)} KM/H</span>
-    <span>PRECIPITATION ${roundWeatherValue(current.precipitation, 1)} MM</span>
-    <span>SOURCE: OPEN-METEO</span>
-  `;
+
+  [
+    `HUMIDITY ${roundWeatherValue(current.relative_humidity_2m)}%`,
+    `WIND ${windDirectionLabel(current.wind_direction_10m)} · ${roundWeatherValue(current.wind_speed_10m)} KM/H`,
+    `PRECIPITATION ${roundWeatherValue(current.precipitation, 1)} MM`,
+    'SOURCE: OPEN-METEO',
+  ].forEach(text => {
+    const item = document.createElement('span');
+    item.textContent = text;
+    data.appendChild(item);
+  });
 
   const icon = document.createElement('div');
   icon.className = 'weather-icon';
@@ -427,14 +461,11 @@ function renderWeatherCard(location, weather) {
 
 function loadWeatherCache(cityQuery) {
   try {
-    const raw = sessionStorage.getItem(WEATHER_CACHE_KEY);
-    if (!raw) return null;
+    const cached = JSON.parse(sessionStorage.getItem(WEATHER_CACHE_KEY) || 'null');
+    const sameCity = cached?.cityQuery === cityQuery;
+    const fresh = cached && Date.now() - cached.savedAt < CONFIG.WEATHER_CACHE_MS;
 
-    const cached = JSON.parse(raw);
-    const isSameCity = cached.cityQuery === cityQuery;
-    const isFresh = Date.now() - cached.savedAt < CONFIG.WEATHER_CACHE_MS;
-
-    return isSameCity && isFresh ? cached : null;
+    return sameCity && fresh ? cached : null;
   } catch {
     return null;
   }
@@ -459,21 +490,6 @@ function saveWeatherCache(cityQuery, location, weather) {
   }
 }
 
-async function fetchJson(url, signal) {
-  const response = await fetch(url, {
-    signal,
-    headers: {
-      Accept: 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Weather receiver returned ${response.status}.`);
-  }
-
-  return response.json();
-}
-
 async function fetchWeatherForCity(cityQuery, signal) {
   const geocodeUrl = new URL('https://geocoding-api.open-meteo.com/v1/search');
   geocodeUrl.search = new URLSearchParams({
@@ -486,9 +502,7 @@ async function fetchWeatherForCity(cityQuery, signal) {
   const geocode = await fetchJson(geocodeUrl, signal);
   const location = geocode.results?.[0];
 
-  if (!location) {
-    throw new Error('CITY_NOT_FOUND');
-  }
+  if (!location) throw new Error('CITY_NOT_FOUND');
 
   const forecastUrl = new URL('https://api.open-meteo.com/v1/forecast');
   forecastUrl.search = new URLSearchParams({
@@ -509,10 +523,7 @@ async function fetchWeatherForCity(cityQuery, signal) {
   });
 
   const weather = await fetchJson(forecastUrl, signal);
-
-  if (!weather.current) {
-    throw new Error('WEATHER_UNAVAILABLE');
-  }
+  if (!weather.current) throw new Error('WEATHER_UNAVAILABLE');
 
   return { location, weather };
 }
@@ -535,24 +546,22 @@ async function runWeatherCommand(cityQuery) {
     return;
   }
 
-  const cached = loadWeatherCache(normalizedCity.toLowerCase());
+  const cacheKey = normalizedCity.toLowerCase();
+  const cached = loadWeatherCache(cacheKey);
 
   if (cached) {
     statusEl.textContent = 'WEATHER CACHED';
     renderWeatherCard(cached.location, cached.weather);
-    statusEl.textContent = 'READY';
+    setReadySoon();
     return;
   }
 
-  if (activeRequestController) {
-    activeRequestController.abort();
-  }
-
+  cancelActiveRequest();
   activeRequestController = new AbortController();
   const requestController = activeRequestController;
 
   statusEl.textContent = 'LINKING...';
-  makeWeatherStatus(`WEATHER RECEIVER // LINKING TO ${normalizedCity.toUpperCase()}...`);
+  addReceiverStatus('weather-status', `WEATHER RECEIVER // LINKING TO ${normalizedCity.toUpperCase()}...`);
 
   try {
     const { location, weather } = await fetchWeatherForCity(
@@ -560,7 +569,7 @@ async function runWeatherCommand(cityQuery) {
       requestController.signal,
     );
 
-    saveWeatherCache(normalizedCity.toLowerCase(), location, weather);
+    saveWeatherCache(cacheKey, location, weather);
     statusEl.textContent = 'SIGNAL RECEIVED';
     renderWeatherCard(location, weather);
   } catch (error) {
@@ -585,10 +594,312 @@ async function runWeatherCommand(cityQuery) {
       activeRequestController = null;
     }
 
-    window.setTimeout(() => {
-      if (!isGenerating) statusEl.textContent = 'READY';
-    }, 900);
+    setReadySoon();
   }
+}
+
+/* News receiver */
+
+function newsHelpText() {
+  return [
+    'NEWS RECEIVER // CHANNELS',
+    '',
+    '/headlines      WORLD',
+    '/news canada    CANADIAN SIGNAL',
+    '/news science   SCIENCE',
+    '/news tech      TECHNOLOGY',
+    '',
+    'CUSTOM SIGNAL:',
+    '/topic <words>',
+    '',
+    'TYPE /open 1 TO VISIT A SOURCE.',
+  ].join('\n');
+}
+
+function getNewsCacheKey(label, query) {
+  return `${label.toLowerCase()}::${query.trim().toLowerCase()}`;
+}
+
+function loadNewsCache(label, query) {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(NEWS_CACHE_KEY) || 'null');
+    const sameQuery = cached?.cacheKey === getNewsCacheKey(label, query);
+    const fresh = cached && Date.now() - cached.savedAt < CONFIG.NEWS_CACHE_MS;
+
+    return sameQuery && fresh ? cached.articles : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveNewsCache(label, query, articles) {
+  try {
+    sessionStorage.setItem(NEWS_CACHE_KEY, JSON.stringify({
+      cacheKey: getNewsCacheKey(label, query),
+      articles,
+      savedAt: Date.now(),
+    }));
+  } catch {
+    // News still works if session storage is unavailable.
+  }
+}
+
+function restoreLatestNewsResults() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(NEWS_RESULTS_KEY) || '[]');
+    latestNewsResults = Array.isArray(saved) ? saved : [];
+  } catch {
+    latestNewsResults = [];
+  }
+}
+
+function saveLatestNewsResults(articles) {
+  latestNewsResults = articles;
+
+  try {
+    sessionStorage.setItem(NEWS_RESULTS_KEY, JSON.stringify(articles));
+  } catch {
+    // /open works until reload if session storage is unavailable.
+  }
+}
+
+function safeArticleUrl(value) {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
+function getArticleDomain(article) {
+  if (article.domain) return String(article.domain).replace(/^www\./, '');
+
+  try {
+    return new URL(article.url).hostname.replace(/^www\./, '');
+  } catch {
+    return 'UNKNOWN SOURCE';
+  }
+}
+
+function parseGdeltDate(value) {
+  const raw = String(value || '').trim();
+
+  if (/^\d{14}$/.test(raw)) {
+    const year = raw.slice(0, 4);
+    const month = raw.slice(4, 6);
+    const day = raw.slice(6, 8);
+    const hour = raw.slice(8, 10);
+    const minute = raw.slice(10, 12);
+    const second = raw.slice(12, 14);
+    return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function relativeSeenTime(value) {
+  const date = parseGdeltDate(value);
+  if (!date) return 'RECENT';
+
+  const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
+
+  if (seconds < 60) return 'JUST NOW';
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}M AGO`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours}H AGO`;
+
+  const days = Math.floor(hours / 24);
+  return `${days}D AGO`;
+}
+
+function normaliseNewsArticles(payload) {
+  const candidates = Array.isArray(payload?.articles)
+    ? payload.articles
+    : Array.isArray(payload?.items)
+      ? payload.items
+      : [];
+
+  const usedUrls = new Set();
+
+  return candidates
+    .map(article => {
+      const url = safeArticleUrl(article.url || article.link || '');
+      const title = String(article.title || article.name || '').replace(/\s+/g, ' ').trim();
+
+      return {
+        title,
+        url,
+        domain: getArticleDomain({ ...article, url }),
+        seenDate: article.seendate || article.seenDate || article.date_published || '',
+      };
+    })
+    .filter(article => article.title && article.url)
+    .filter(article => {
+      if (usedUrls.has(article.url)) return false;
+      usedUrls.add(article.url);
+      return true;
+    })
+    .slice(0, CONFIG.NEWS_MAX_ITEMS);
+}
+
+async function fetchNews(query, signal) {
+  const endpoint = new URL('https://api.gdeltproject.org/api/v2/doc/doc');
+  endpoint.search = new URLSearchParams({
+    query,
+    mode: 'artlist',
+    format: 'json',
+    maxrecords: String(CONFIG.NEWS_MAX_ITEMS),
+    timespan: '24h',
+    sort: 'datedesc',
+  });
+
+  const payload = await fetchJson(endpoint, signal);
+  const articles = normaliseNewsArticles(payload);
+
+  if (!articles.length) {
+    throw new Error('NO_NEWS_RESULTS');
+  }
+
+  return articles;
+}
+
+function renderNewsCard(label, articles) {
+  const card = document.createElement('section');
+  card.className = 'news-card response-line';
+  card.setAttribute('aria-label', `${label} recent news`);
+
+  const title = document.createElement('div');
+  title.className = 'news-title';
+  title.textContent = `${label} // RECENT SIGNALS`;
+  card.appendChild(title);
+
+  articles.forEach((article, index) => {
+    const row = document.createElement('div');
+    row.className = 'news-item';
+
+    const headline = document.createElement('a');
+    headline.className = 'news-headline';
+    headline.href = article.url;
+    headline.target = '_blank';
+    headline.rel = 'noopener noreferrer';
+    headline.textContent = `${String(index + 1).padStart(2, '0')}  ${article.title}`;
+    headline.setAttribute('aria-label', `Open item ${index + 1}: ${article.title}`);
+
+    const source = document.createElement('div');
+    source.className = 'news-source';
+    source.textContent = `${article.domain.toUpperCase()} · ${relativeSeenTime(article.seenDate)}`;
+
+    row.append(headline, source);
+    card.appendChild(row);
+  });
+
+  const note = document.createElement('div');
+  note.className = 'news-note';
+  note.textContent = `TYPE /OPEN 1–${articles.length} TO VISIT A SOURCE.`;
+  card.appendChild(note);
+
+  transcriptEl.appendChild(card);
+  scrollTranscriptToBottom();
+}
+
+async function runNewsCommand(label, query) {
+  const cleanLabel = String(label || 'NEWS').toUpperCase();
+  const cleanQuery = String(query || '').trim();
+
+  if (!cleanQuery) {
+    addLine('response-line', newsHelpText());
+    return;
+  }
+
+  const cached = loadNewsCache(cleanLabel, cleanQuery);
+
+  if (cached?.length) {
+    statusEl.textContent = 'NEWS CACHED';
+    saveLatestNewsResults(cached);
+    renderNewsCard(cleanLabel, cached);
+    setReadySoon();
+    return;
+  }
+
+  cancelActiveRequest();
+  activeRequestController = new AbortController();
+  const requestController = activeRequestController;
+
+  statusEl.textContent = 'TUNING...';
+  addReceiverStatus('news-status', `NEWS RECEIVER // TUNING: ${cleanLabel}...`);
+
+  try {
+    const articles = await fetchNews(cleanQuery, requestController.signal);
+
+    saveNewsCache(cleanLabel, cleanQuery, articles);
+    saveLatestNewsResults(articles);
+
+    statusEl.textContent = 'SIGNAL RECEIVED';
+    renderNewsCard(cleanLabel, articles);
+  } catch (error) {
+    if (error.name === 'AbortError') return;
+
+    console.error('News receiver error:', error);
+    statusEl.textContent = 'SIGNAL LOST';
+
+    const text = error.message === 'NO_NEWS_RESULTS'
+      ? `NEWS RECEIVER // NO CLEAR SIGNALS FOR ${cleanLabel}.\nTRY /topic <different words>.`
+      : 'NEWS RECEIVER // SIGNAL BLOCKED OR LOST.\nTHIS MAY BE A NETWORK OR SOURCE-ACCESS LIMIT.\nTRY AGAIN LATER.';
+
+    addLine('response-line', text);
+  } finally {
+    if (activeRequestController === requestController) {
+      activeRequestController = null;
+    }
+
+    setReadySoon();
+  }
+}
+
+function openNewsItem(itemNumber) {
+  const index = Number(itemNumber) - 1;
+  const article = latestNewsResults[index];
+
+  if (!Number.isInteger(index) || !article?.url) {
+    addLine(
+      'response-line',
+      'NEWS RECEIVER // NO STORED ITEM AT THAT NUMBER.\nLOAD /headlines OR /news <channel> FIRST.',
+    );
+    return;
+  }
+
+  const tab = window.open(article.url, '_blank', 'noopener,noreferrer');
+
+  if (!tab) {
+    addLine(
+      'response-line',
+      `SOURCE READY: ${article.domain.toUpperCase()}\nYOUR BROWSER BLOCKED THE NEW TAB. TAP THE HEADLINE IN THE LIST.`,
+    );
+  }
+}
+
+function programsText() {
+  return [
+    'LBSTRCOMP PROGRAM DIRECTORY',
+    '',
+    '/weather       CURRENT METRIC WEATHER',
+    '/news          LIVE HEADLINES',
+    '/planetrunner  ORBITAL NAVIGATION PROGRAM',
+    '/help          COMMAND INDEX',
+  ].join('\n');
+}
+
+function planetrunnerText() {
+  return [
+    'PLANETRUNNER // PROGRAM SLOT RESERVED',
+    'ORBITAL NAVIGATION MODULE NOT YET INSTALLED.',
+    'THE MACHINE HOLDS THE PLACE OPEN.',
+  ].join('\n');
 }
 
 function handleCommand(value) {
@@ -600,43 +911,95 @@ function handleCommand(value) {
   }
 
   if (lower.startsWith('/city ')) {
-    return {
-      type: 'weather-city',
-      city: command.slice(6).trim(),
-    };
+    return { type: 'weather-city', city: command.slice(6).trim() };
   }
 
   if (lower === '/city') {
     return { type: 'weather-help' };
   }
 
+  if (lower === '/news' || lower === 'news') {
+    return { type: 'news-help' };
+  }
+
+  if (lower === '/headlines' || lower === 'headlines') {
+    return {
+      type: 'news-query',
+      label: NEWS_CHANNELS.headlines.label,
+      query: NEWS_CHANNELS.headlines.query,
+    };
+  }
+
+  if (lower.startsWith('/news ')) {
+    const channelName = lower.slice(6).trim();
+    const channel = NEWS_CHANNELS[channelName];
+
+    if (channel) {
+      return {
+        type: 'news-query',
+        label: channel.label,
+        query: channel.query,
+      };
+    }
+
+    return { type: 'news-help' };
+  }
+
+  if (lower.startsWith('/topic ')) {
+    const topic = command.slice(7).trim();
+
+    return topic
+      ? { type: 'news-query', label: `TOPIC: ${topic.toUpperCase()}`, query: topic }
+      : { type: 'news-help' };
+  }
+
+  if (lower === '/topic') {
+    return { type: 'news-help' };
+  }
+
+  if (/^\/open\s+\d+$/.test(lower)) {
+    return {
+      type: 'news-open',
+      itemNumber: Number(lower.replace(/^\/open\s+/, '')),
+    };
+  }
+
+  if (lower === '/open') {
+    return { type: 'text', text: 'ENTER /open <number> AFTER LOADING A NEWS CHANNEL.' };
+  }
+
+  if (lower === '/programs' || lower === 'programs') {
+    return { type: 'text', text: programsText() };
+  }
+
+  if (lower === '/planetrunner' || lower === 'planetrunner') {
+    return { type: 'text', text: planetrunnerText() };
+  }
+
   if (lower === '/help' || lower === 'help') {
     return {
       type: 'text',
-      text: 'commands: /help, /about, /status, /clear, /weather, /city <place>',
+      text: 'commands: /help, /about, /status, /clear, /programs, /weather, /city <place>, /news, /headlines, /news canada, /news science, /news tech, /topic <words>, /open <number>',
     };
   }
 
   if (lower === '/about' || lower === 'about') {
     return {
       type: 'text',
-      text: 'jesseos v0.7: a local language-bank dream terminal with an on-demand weather receiver. no geolocation, tracking, or external api keys.',
+      text: 'jesseos v0.8: a local language-bank dream terminal with on-demand weather and news receivers. no geolocation, tracking, or external api keys.',
     };
   }
 
   if (lower === '/status' || lower === 'status') {
     return {
       type: 'text',
-      text: 'status: local dream engine online. language banks loaded. weather receiver standing by. signal stable.',
+      text: 'status: local dream engine online. language banks loaded. weather and news receivers standing by. signal stable.',
     };
   }
 
   if (lower === '/clear' || lower === 'clear') {
     transcriptEl.innerHTML = '';
-    return {
-      type: 'text',
-      text: 'terminal cleared. the green room remains.',
-    };
+    return { type: 'text', text: 'terminal cleared. the green room remains.' };
   }
 
   return null;
@@ -650,8 +1013,8 @@ async function handleSubmit(event) {
 
   isGenerating = true;
   inputEl.disabled = true;
-
   statusEl.textContent = 'THINKING...';
+
   addLine('user-line', `> ${prompt}`);
   inputEl.value = '';
 
@@ -669,6 +1032,23 @@ async function handleSubmit(event) {
       return;
     }
 
+    if (commandReply?.type === 'news-help') {
+      statusEl.textContent = 'NEWS READY';
+      addLine('response-line', newsHelpText());
+      return;
+    }
+
+    if (commandReply?.type === 'news-query') {
+      await runNewsCommand(commandReply.label, commandReply.query);
+      return;
+    }
+
+    if (commandReply?.type === 'news-open') {
+      statusEl.textContent = 'OPENING...';
+      openNewsItem(commandReply.itemNumber);
+      return;
+    }
+
     const response = commandReply?.type === 'text'
       ? commandReply.text
       : generateResponse(prompt);
@@ -678,18 +1058,18 @@ async function handleSubmit(event) {
   } catch (error) {
     console.error('JesseOS error:', error);
     statusEl.textContent = 'ERROR';
-    addLine('response-line', 'system error: the local dream engine lost its thread. reload and try again.');
+    addLine('response-line', 'SYSTEM ERROR: THE LOCAL DREAM ENGINE LOST ITS THREAD. RELOAD AND TRY AGAIN.');
   } finally {
     isGenerating = false;
     inputEl.disabled = false;
 
     if (statusEl.textContent !== 'READY') {
-      window.setTimeout(() => {
-        if (!isGenerating) statusEl.textContent = 'READY';
-      }, 900);
+      setReadySoon();
     }
   }
 }
+
+/* Touch keyboard */
 
 function updateShiftKeys() {
   document.querySelectorAll('[data-key="shift"]').forEach(key => {
@@ -805,13 +1185,14 @@ function init() {
     }
   });
 
+  restoreLatestNewsResults();
   initTouchKeyboard();
   updateShiftKeys();
 
   statusEl.textContent = 'READY';
   addLine(
     'system-line',
-    'jesseos v0.7 — language banks online. weather receiver ready. type /help for commands.',
+    'jesseos v0.8 — language banks online. weather + news receivers ready. type /help for commands.',
   );
 }
 
