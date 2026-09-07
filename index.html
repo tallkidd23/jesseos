@@ -46,13 +46,6 @@
                   spellcheck="true"
                   aria-label="Message JesseOS"
                 >
-                <button
-                  id="send"
-                  type="button"
-                  aria-label="Erase input"
-                  title="Erase input"
-                >⌫</button>
-                <span id="cursor" class="cursor" aria-hidden="true"></span>
               </form>
             </main>
           </div>
@@ -70,74 +63,74 @@
         <div class="monitor-foot" aria-hidden="true"></div>
       </section>
 
-      <section class="keyboard" aria-label="Decorative LBSTRCOMP keyboard" aria-hidden="true">
-        <div class="key-row row-one">
-          <span class="key key-red">ESC</span>
-          <span class="key">1</span>
-          <span class="key">2</span>
-          <span class="key">3</span>
-          <span class="key">4</span>
-          <span class="key">5</span>
-          <span class="key">6</span>
-          <span class="key">7</span>
-          <span class="key">8</span>
-          <span class="key">9</span>
-          <span class="key">0</span>
-          <span class="key key-wide">DEL</span>
+      <section class="keyboard" aria-label="LBSTRCOMP touch keyboard">
+        <div class="key-row key-row-numbers">
+          <button class="key key-red key-action" type="button" data-key="escape" aria-label="Escape">ESC</button>
+          <button class="key" type="button" data-key="1">1</button>
+          <button class="key" type="button" data-key="2">2</button>
+          <button class="key" type="button" data-key="3">3</button>
+          <button class="key" type="button" data-key="4">4</button>
+          <button class="key" type="button" data-key="5">5</button>
+          <button class="key" type="button" data-key="6">6</button>
+          <button class="key" type="button" data-key="7">7</button>
+          <button class="key" type="button" data-key="8">8</button>
+          <button class="key" type="button" data-key="9">9</button>
+          <button class="key" type="button" data-key="0">0</button>
+          <button class="key key-delete key-action" type="button" data-key="backspace" aria-label="Delete one character">DEL</button>
         </div>
 
-        <div class="key-row">
-          <span class="key key-tab">TAB</span>
-          <span class="key">Q</span>
-          <span class="key">W</span>
-          <span class="key">E</span>
-          <span class="key">R</span>
-          <span class="key">T</span>
-          <span class="key">Y</span>
-          <span class="key">U</span>
-          <span class="key">I</span>
-          <span class="key">O</span>
-          <span class="key">P</span>
-          <span class="key">+</span>
+        <div class="key-row key-row-letters">
+          <button class="key key-tab key-action" type="button" data-key="tab">TAB</button>
+          <button class="key" type="button" data-key="q">Q</button>
+          <button class="key" type="button" data-key="w">W</button>
+          <button class="key" type="button" data-key="e">E</button>
+          <button class="key" type="button" data-key="r">R</button>
+          <button class="key" type="button" data-key="t">T</button>
+          <button class="key" type="button" data-key="y">Y</button>
+          <button class="key" type="button" data-key="u">U</button>
+          <button class="key" type="button" data-key="i">I</button>
+          <button class="key" type="button" data-key="o">O</button>
+          <button class="key" type="button" data-key="p">P</button>
+          <button class="key" type="button" data-key="+">+</button>
         </div>
 
-        <div class="key-row">
-          <span class="key key-caps">CTRL</span>
-          <span class="key">A</span>
-          <span class="key">S</span>
-          <span class="key">D</span>
-          <span class="key">F</span>
-          <span class="key">G</span>
-          <span class="key">H</span>
-          <span class="key">J</span>
-          <span class="key">K</span>
-          <span class="key">L</span>
-          <span class="key">:</span>
-          <span class="key key-return">RETURN</span>
+        <div class="key-row key-row-letters">
+          <button class="key key-ctrl key-action" type="button" data-key="control">CTRL</button>
+          <button class="key" type="button" data-key="a">A</button>
+          <button class="key" type="button" data-key="s">S</button>
+          <button class="key" type="button" data-key="d">D</button>
+          <button class="key" type="button" data-key="f">F</button>
+          <button class="key" type="button" data-key="g">G</button>
+          <button class="key" type="button" data-key="h">H</button>
+          <button class="key" type="button" data-key="j">J</button>
+          <button class="key" type="button" data-key="k">K</button>
+          <button class="key" type="button" data-key="l">L</button>
+          <button class="key" type="button" data-key=":">:</button>
+          <button class="key key-return key-action" type="button" data-key="enter">RETURN</button>
         </div>
 
-        <div class="key-row">
-          <span class="key key-shift">SHIFT</span>
-          <span class="key">Z</span>
-          <span class="key">X</span>
-          <span class="key">C</span>
-          <span class="key">V</span>
-          <span class="key">B</span>
-          <span class="key">N</span>
-          <span class="key">M</span>
-          <span class="key">,</span>
-          <span class="key">.</span>
-          <span class="key key-shift">SHIFT</span>
+        <div class="key-row key-row-letters">
+          <button class="key key-shift key-action" type="button" data-key="shift" aria-label="Shift">SHIFT</button>
+          <button class="key" type="button" data-key="z">Z</button>
+          <button class="key" type="button" data-key="x">X</button>
+          <button class="key" type="button" data-key="c">C</button>
+          <button class="key" type="button" data-key="v">V</button>
+          <button class="key" type="button" data-key="b">B</button>
+          <button class="key" type="button" data-key="n">N</button>
+          <button class="key" type="button" data-key="m">M</button>
+          <button class="key" type="button" data-key=",">,</button>
+          <button class="key" type="button" data-key=".">.</button>
+          <button class="key key-shift key-action" type="button" data-key="shift" aria-label="Shift">SHIFT</button>
         </div>
 
-        <div class="key-row bottom-row">
-          <span class="key key-red key-small">RUN</span>
-          <span class="key key-red key-small">STOP</span>
-          <span class="key key-space">SPACE</span>
-          <span class="key key-small">F1</span>
-          <span class="key key-small">F3</span>
-          <span class="key key-small">F5</span>
-          <span class="key key-small">F7</span>
+        <div class="key-row key-row-bottom">
+          <button class="key key-red key-small key-action" type="button" data-key="run">RUN</button>
+          <button class="key key-red key-small key-action" type="button" data-key="stop">STOP</button>
+          <button class="key key-space key-action" type="button" data-key="space">SPACE</button>
+          <button class="key key-small key-action" type="button" data-key="f1">F1</button>
+          <button class="key key-small key-action" type="button" data-key="f3">F3</button>
+          <button class="key key-small key-action" type="button" data-key="f5">F5</button>
+          <button class="key key-small key-action" type="button" data-key="f7">F7</button>
         </div>
       </section>
     </section>
