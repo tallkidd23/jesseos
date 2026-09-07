@@ -760,7 +760,7 @@ function handleTouchKey(key) {
     return;
   }
 
-  if (['control', 'run', 'stop', 'f1', 'f3', 'f5', 'f7'].includes(key)) {
+  if (['control', 'run', 'stop', 'f1', 'f3', 'f5'].includes(key)) {
     return;
   }
 
