@@ -10,9 +10,9 @@ const CONFIG = {
 
 let transcriptEl;
 let inputEl;
-let sendBtn;
 let statusEl;
 let isGenerating = false;
+let shiftEnabled = false;
 
 const STOPWORDS = new Set([
   'i', 'am', 'a', 'an', 'the', 'is', 'are', 'was', 'were',
@@ -254,7 +254,6 @@ async function handleSubmit(event) {
 
   isGenerating = true;
   inputEl.disabled = true;
-  if (sendBtn) sendBtn.disabled = true;
 
   statusEl.textContent = 'THINKING...';
   addLine('user-line', `> ${prompt}`);
@@ -272,15 +271,105 @@ async function handleSubmit(event) {
   } finally {
     isGenerating = false;
     inputEl.disabled = false;
-    if (sendBtn) sendBtn.disabled = false;
-    inputEl.focus();
   }
+}
+
+function updateShiftKeys() {
+  document.querySelectorAll('[data-key="shift"]').forEach(key => {
+    key.classList.toggle('is-active', shiftEnabled);
+    key.setAttribute('aria-pressed', String(shiftEnabled));
+  });
+}
+
+function insertAtCaret(text) {
+  const start = inputEl.selectionStart ?? inputEl.value.length;
+  const end = inputEl.selectionEnd ?? inputEl.value.length;
+
+  inputEl.value = `${inputEl.value.slice(0, start)}${text}${inputEl.value.slice(end)}`;
+
+  const nextPosition = start + text.length;
+  inputEl.setSelectionRange(nextPosition, nextPosition);
+}
+
+function deleteAtCaret() {
+  const start = inputEl.selectionStart ?? inputEl.value.length;
+  const end = inputEl.selectionEnd ?? inputEl.value.length;
+
+  if (start !== end) {
+    inputEl.value = `${inputEl.value.slice(0, start)}${inputEl.value.slice(end)}`;
+    inputEl.setSelectionRange(start, start);
+    return;
+  }
+
+  if (start > 0) {
+    inputEl.value = `${inputEl.value.slice(0, start - 1)}${inputEl.value.slice(end)}`;
+    inputEl.setSelectionRange(start - 1, start - 1);
+  }
+}
+
+function handleTouchKey(key) {
+  if (isGenerating || inputEl.disabled) return;
+
+  if (key === 'enter') {
+    handleSubmit();
+    return;
+  }
+
+  if (key === 'backspace') {
+    deleteAtCaret();
+    return;
+  }
+
+  if (key === 'shift') {
+    shiftEnabled = !shiftEnabled;
+    updateShiftKeys();
+    return;
+  }
+
+  if (key === 'space') {
+    insertAtCaret(' ');
+    return;
+  }
+
+  if (key === 'tab') {
+    insertAtCaret('  ');
+    return;
+  }
+
+  if (key === 'escape') {
+    inputEl.value = '';
+    shiftEnabled = false;
+    updateShiftKeys();
+    return;
+  }
+
+  if (['control', 'run', 'stop', 'f1', 'f3', 'f5', 'f7'].includes(key)) {
+    return;
+  }
+
+  const character = shiftEnabled && /^[a-z]$/.test(key)
+    ? key.toUpperCase()
+    : key;
+
+  insertAtCaret(character);
+
+  if (shiftEnabled) {
+    shiftEnabled = false;
+    updateShiftKeys();
+  }
+}
+
+function initTouchKeyboard() {
+  document.querySelectorAll('.keyboard [data-key]').forEach(button => {
+    button.addEventListener('click', () => {
+      handleTouchKey(button.dataset.key);
+    });
+  });
 }
 
 function init() {
   transcriptEl = document.getElementById('transcript');
   inputEl = document.getElementById('input');
-  sendBtn = document.getElementById('send');
   statusEl = document.getElementById('status');
 
   if (!transcriptEl || !inputEl || !statusEl) {
@@ -290,23 +379,20 @@ function init() {
 
   const form = document.getElementById('input-form');
   if (form) {
-  form.addEventListener('submit', handleSubmit);
-}
-
-  if (sendBtn) {
-    sendBtn.addEventListener('click', () => {
-      inputEl.value = '';
-      inputEl.focus();
-    });
+    form.addEventListener('submit', handleSubmit);
   }
 
   inputEl.addEventListener('keydown', event => {
-    if (event.key === 'Enter') handleSubmit(event);
+    if (event.key === 'Enter') {
+      handleSubmit(event);
+    }
   });
+
+  initTouchKeyboard();
+  updateShiftKeys();
 
   statusEl.textContent = 'READY';
   addLine('system-line', 'jesseos v0.6 — language banks online. type /help for commands.');
-  inputEl.focus();
 }
 
 if (document.readyState === 'loading') {
