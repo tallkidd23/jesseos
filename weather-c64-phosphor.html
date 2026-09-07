@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>HOW'S THE WEATHER?</title>
+
+  <!-- Commodore 64–style font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      /* Bright but slightly dulled phosphor green */
+      --phosphor: #28e04a;
+      --phosphor-dim: #1bb93a;
+      --phosphor-glow: rgba(40, 224, 74, 0.55);
+      --bg: #000000;
+      --panel: #050505;
+      --panel-border: #111;
+      --font-c64: "Press Start 2P", system-ui, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--font-c64);
+      background: var(--bg);
+      color: var(--phosphor);
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+    }
+
+    /* Subtle CRT scanline overlay */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background:
+        repeating-linear-gradient(
+          to bottom,
+          rgba(255, 255, 255, 0.03) 0px,
+          rgba(255, 255, 255, 0.03) 1px,
+          transparent 2px,
+          transparent 4px
+        );
+      pointer-events: none;
+      mix-blend-mode: overlay;
+    }
+
+    .widget {
+      position: relative;
+      background: var(--panel);
+      border: 2px solid var(--panel-border);
+      padding: 22px 22px;
+      width: 400px;
+      box-shadow:
+        0 0 20px rgba(0, 0, 0, 0.9),
+        inset 0 0 40px rgba(40, 224, 74, 0.06);
+      image-rendering: pixelated;
+      overflow: hidden;
+    }
+
+    /* Soft inner glow behind content */
+    .widget::after {
+      content: "";
+      position: absolute;
+      inset: -20%;
+      background: radial-gradient(
+        circle at 50% 10%,
+        rgba(40, 224, 74, 0.12),
+        transparent 60%
+      );
+      pointer-events: none;
+      filter: blur(10px);
+    }
+
+    h1 {
+      position: relative;
+      font-size: 14px;
+      margin: 0 0 18px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--phosphor);
+      text-shadow:
+        0 0 6px var(--phosphor-glow),
+        0 0 14px var(--phosphor-glow);
+      line-height: 1.5;
+    }
+
+    .input-row {
+      position: relative;
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    input[type="text"] {
+      position: relative;
+      flex: 1;
+      background: #000;
+      border: 2px solid #1b1b1b;
+      color: var(--phosphor);
+      padding: 10px 10px;
+      border-radius: 0;
+      outline: none;
+      font-size: 11px;
+      font-family: var(--font-c64);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      text-shadow: 0 0 4px var(--phosphor-glow);
+    }
+
+    input[type="text"]::placeholder {
+      color: var(--phosphor-dim);
+      opacity: 0.7;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--phosphor);
+      box-shadow:
+        0 0 8px var(--phosphor-glow),
+        inset 0 0 10px rgba(40, 224, 74, 0.15);
+    }
+
+    button {
+      position: relative;
+      background: #080808;
+      border: 2px solid #222;
+      color: var(--phosphor);
+      padding: 10px 14px;
+      border-radius: 0;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: var(--font-c64);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      text-shadow: 0 0 4px var(--phosphor-glow);
+    }
+
+    button:hover {
+      border-color: var(--phosphor);
+      box-shadow:
+        0 0 10px var(--phosphor-glow),
+        inset 0 0 8px rgba(40, 224, 74, 0.12);
+    }
+
+    .weather {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 14px;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .icon-wrap {
+      width: 90px;
+      height: 90px;
+      display: grid;
+      place-items: center;
+    }
+
+    .icon {
+      width: 80px;
+      height: 80px;
+      stroke: var(--phosphor);
+      fill: none;
+      stroke-width: 2.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      filter:
+        drop-shadow(0 0 6px var(--phosphor-glow))
+        drop-shadow(0 0 16px rgba(40, 224, 74, 0.35));
+      opacity: 0.95;
+    }
+
+    .temp {
+      position: relative;
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1.3;
+      text-shadow:
+        0 0 6px var(--phosphor-glow),
+        0 0 14px var(--phosphor-glow);
+      word-break: break-word;
+    }
+
+    .condition {
+      position: relative;
+      font-size: 9px;
+      color: var(--phosphor-dim);
+      margin-top: 6px;
+      line-height: 1.5;
+      max-width: 240px;
+      text-shadow: 0 0 4px rgba(40, 224, 74, 0.35);
+    }
+
+    .error {
+      position: relative;
+      margin-top: 10px;
+      font-size: 9px;
+      color: #ff6b6b;
+      line-height: 1.5;
+      text-shadow: 0 0 6px rgba(255, 107, 107, 0.5);
+    }
+
+    .loading {
+      position: relative;
+      margin-top: 10px;
+      font-size: 9px;
+      color: var(--phosphor-dim);
+      line-height: 1.5;
+      text-shadow: 0 0 4px rgba(40, 224, 74, 0.35);
+    }
+  </style>
+</head>
+<body>
+  <div class="widget">
+    <h1>HOW'S THE WEATHER?</h1>
+
+    <div class="input-row">
+      <input id="cityInput" type="text" placeholder="ENTER CITY" />
+      <button id="goBtn">GO</button>
+    </div>
+
+    <div id="loading" class="loading" style="display:none;">FETCHING WEATHER…</div>
+    <div id="error" class="error" style="display:none;"></div>
+
+    <div id="weatherBlock" class="weather" style="display:none;">
+      <div class="icon-wrap">
+        <svg id="weatherIcon" class="icon" viewBox="0 0 100 100" aria-hidden="true"></svg>
+      </div>
+      <div>
+        <div id="temp" class="temp"></div>
+        <div id="condition" class="condition"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const cityInput = document.getElementById('cityInput');
+    const goBtn = document.getElementById('goBtn');
+    const loadingEl = document.getElementById('loading');
+    const errorEl = document.getElementById('error');
+    const weatherBlock = document.getElementById('weatherBlock');
+    const tempEl = document.getElementById('temp');
+    const conditionEl = document.getElementById('condition');
+    const iconEl = document.getElementById('weatherIcon');
+
+    // Bright curved phosphor-green icons (SVG paths)
+    const icons = {
+      sun: `
+        <circle cx="50" cy="50" r="18" />
+        <g>
+          <line x1="50" y1="12" x2="50" y2="22" />
+          <line x1="50" y1="78" x2="50" y2="88" />
+          <line x1="12" y1="50" x2="22" y2="50" />
+          <line x1="78" y1="50" x2="88" y2="50" />
+          <line x1="24" y1="24" x2="31" y2="31" />
+          <line x1="69" y1="69" x2="76" y2="76" />
+          <line x1="24" y1="76" x2="31" y2="69" />
+          <line x1="69" y1="31" x2="76" y2="24" />
+        </g>
+      `,
+      partSun: `
+        <!-- Sun offset to top-left -->
+        <circle cx="40" cy="36" r="14" />
+        <g>
+          <line x1="40" y1="10" x2="40" y2="18" />
+          <line x1="40" y1="54" x2="40" y2="62" />
+          <line x1="10" y1="36" x2="18" y2="36" />
+          <line x1="70" y1="36" x2="78" y2="36" />
+          <line x1="21" y1="21" x2="27" y2="27" />
+          <line x1="53" y1="53" x2="59" y2="59" />
+          <line x1="21" y1="59" x2="27" y2="53" />
+          <line x1="53" y1="27" x2="59" y2="21" />
+        </g>
+        <!-- Curved cloud -->
+        <path d="M30 68
+                 c 6 -16 22 -26 38 -26
+                 c 12 0 22 8 26 20
+                 c 2 -4 6 -6 10 -6
+                 c 10 0 18 8 18 18
+                 c 0 10 -8 18 -18 18
+                 L 38 92
+                 c -12 0 -22 -8 -22 -18
+                 c 0 -2 0 -4 1 -6
+                 z" />
+      `,
+      rain: `
+        <!-- Cloud -->
+        <path d="M20 50
+                 c 6 -16 22 -26 38 -26
+                 c 12 0 22 8 26 20
+                 c 2 -4 6 -6 10 -6
+                 c 10 0 18 8 18 18
+                 c 0 10 -8 18 -18 18
+                 L 28 82
+                 c -12 0 -22 -8 -22 -18
+                 c 0 -2 0 -4 1 -6
+                 z" />
+        <!-- Rain drops as curved lines -->
+        <g>
+          <path d="M36 86 q 4 8 0 16" />
+          <path d="M50 86 q 4 8 0 16" />
+          <path d="M64 86 q 4 8 0 16" />
+        </g>
+      `,
+      extreme: `
+        <!-- Tornado / funnel -->
+        <path d="M50 14
+                 C 58 28, 62 38, 66 48
+                 C 70 58, 72 68, 70 76
+                 L 30 76
+                 C 28 68, 30 58, 34 48
+                 C 38 38, 42 28, 50 14
+                 z" />
+        <!-- Swirl lines -->
+        <path d="M22 40 q 10 -6 20 0" />
+        <path d="M18 52 q 12 -8 26 0" />
+        <path d="M22 64 q 10 -6 20 0" />
+        <!-- Ground hint -->
+        <path d="M20 82 q 30 -6 60 0" />
+      `
+    };
+
+    function setIcon(name) {
+      iconEl.innerHTML = icons[name] || icons.sun;
+    }
+
+    // Map Open-Meteo WMO weather codes to our icons + text
+    function mapCondition(code, isDay) {
+      const clear = [0];
+      const partly = [1, 2, 3, 45, 48];
+      const precip = [
+        51, 53, 55, 61, 63, 65, 66, 67,
+        71, 73, 75, 77, 80, 81, 82,
+        85, 86, 91, 92, 93, 95, 96, 99
+      ];
+
+      if (clear.includes(code)) {
+        return { icon: 'sun', text: isDay ? 'CLEAR' : 'CLEAR NIGHT' };
+      }
+      if (partly.includes(code)) {
+        return { icon: 'partSun', text: isDay ? 'PARTLY CLOUDY' : 'CLOUDY' };
+      }
+      if (precip.includes(code)) {
+        if ([95, 96, 99].includes(code)) {
+          return { icon: 'extreme', text: 'SEVERE STORM WARNING' };
+        }
+        return { icon: 'rain', text: 'PRECIPITATION' };
+      }
+      return { icon: 'partSun', text: 'UNKNOWN' };
+    }
+
+    async function fetchWeatherForCity(city) {
+      const geoRes = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`
+      );
+      const geoData = await geoRes.json();
+      if (!geoData.results || geoData.results.length === 0) {
+        throw new Error('CITY NOT FOUND.');
+      }
+      const { latitude, longitude, name, country } = geoData.results[0];
+
+      const weatherRes = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`
+      );
+      const weatherData = await weatherRes.json();
+      const cw = weatherData.current_weather;
+
+      const isDay = cw.is_day === 1;
+      const { icon, text } = mapCondition(cw.weathercode, isDay);
+
+      return {
+        city: `${name}, ${country}`,
+        temp: cw.temperature,
+        condition: text,
+        icon
+      };
+    }
+
+    async function handleSearch() {
+      const city = cityInput.value.trim();
+      if (!city) return;
+
+      loadingEl.style.display = 'block';
+      errorEl.style.display = 'none';
+      weatherBlock.style.display = 'none';
+
+      try {
+        const data = await fetchWeatherForCity(city);
+        tempEl.textContent = `${Math.round(data.temp)}°C`;
+        conditionEl.textContent = `${data.condition} • ${data.city}`;
+        setIcon(data.icon);
+        weatherBlock.style.display = 'grid';
+      } catch (e) {
+        errorEl.textContent = e.message || 'FAILED TO FETCH WEATHER.';
+        errorEl.style.display = 'block';
+      } finally {
+        loadingEl.style.display = 'none';
+      }
+    }
+
+    goBtn.addEventListener('click', handleSearch);
+    cityInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleSearch();
+    });
+  </script>
+</body>
+</html>
