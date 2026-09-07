@@ -1,18 +1,24 @@
-// JesseOS v0.6 — local language-bank dream terminal
-// Local-only. No network calls, tracking, or secrets.
+// JesseOS v0.7 — local language-bank dream terminal + weather receiver
+// Weather requests occur only after an explicit /city command.
+// No geolocation, tracking, API keys, or background polling.
 
 const CONFIG = {
   TYPE_DELAY_MIN: 18,
   TYPE_DELAY_MAX: 42,
   PUNCTUATION_PAUSE_BASE: 70,
   PUNCTUATION_PAUSE_END: 130,
+  WEATHER_CACHE_MS: 10 * 60 * 1000,
 };
+
+const WEATHER_CACHE_KEY = 'jesseos-weather-cache-v1';
+const WEATHER_CITY_KEY = 'jesseos-weather-city-v1';
 
 let transcriptEl;
 let inputEl;
 let statusEl;
 let isGenerating = false;
 let shiftEnabled = false;
+let activeRequestController = null;
 
 const STOPWORDS = new Set([
   'i', 'am', 'a', 'an', 'the', 'is', 'are', 'was', 'were',
@@ -52,7 +58,7 @@ const BANKS = {
     'the stars are old information crossing a dark distance',
   ],
   terminal: [
-    'the cursor keeps watch beside the unfinished sentence',
+    'the prompt keeps watch beside the unfinished sentence',
     'a background process continues without asking to be admired',
     'the buffer holds more than the screen can show at once',
     'the keyboard makes weather out of pressure and timing',
@@ -67,7 +73,7 @@ const BANKS = {
   ],
   dream: [
     'rain taps softly on a keyboard no one has left behind',
-    'a green hallway opens behind the blinking cursor',
+    'a green hallway opens behind the waiting prompt',
     'the little machine keeps a lamp on for late visitors',
     'the screen holds a small weather system under glass',
     'a quiet animal moves through the wires and does not explain itself',
@@ -105,7 +111,7 @@ const DREAM_FRAMES = [
 const SECOND_LINES = [
   'The rest can remain unfinished for now.',
   'No cloud was contacted; this stays inside the room.',
-  'The cursor is still waiting, but it is not in a hurry.',
+  'The prompt is still waiting, but it is not in a hurry.',
   'A little noise is normal in a living signal.',
   'The next line can change the shape of this one.',
 ];
@@ -202,6 +208,10 @@ function addLine(className, text) {
   return line;
 }
 
+function scrollTranscriptToBottom() {
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
 function wait(ms) {
   return new Promise(resolve => window.setTimeout(resolve, ms));
 }
@@ -220,27 +230,413 @@ async function typeResponse(text) {
     await wait(delay);
   }
 
-  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  scrollTranscriptToBottom();
+}
+
+function makeWeatherStatus(text) {
+  const card = document.createElement('div');
+  card.className = 'weather-status response-line';
+  card.textContent = text;
+  transcriptEl.appendChild(card);
+  scrollTranscriptToBottom();
+  return card;
+}
+
+function weatherDetailsForCode(code) {
+  const numericCode = Number(code);
+
+  if (numericCode === 0) {
+    return { label: 'CLEAR SKY', icon: 'sun' };
+  }
+
+  if ([1, 2].includes(numericCode)) {
+    return { label: 'PARTLY CLOUDY', icon: 'partly-cloudy' };
+  }
+
+  if (numericCode === 3) {
+    return { label: 'OVERCAST', icon: 'cloud' };
+  }
+
+  if ([45, 48].includes(numericCode)) {
+    return { label: 'FOG', icon: 'fog' };
+  }
+
+  if ([51, 53, 55, 56, 57].includes(numericCode)) {
+    return { label: 'DRIZZLE', icon: 'drizzle' };
+  }
+
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(numericCode)) {
+    return { label: 'RAIN', icon: 'rain' };
+  }
+
+  if ([71, 73, 75, 77, 85, 86].includes(numericCode)) {
+    return { label: 'SNOW', icon: 'snow' };
+  }
+
+  if ([95, 96, 99].includes(numericCode)) {
+    return { label: 'THUNDERSTORM', icon: 'storm' };
+  }
+
+  return { label: 'UNKNOWN SKY', icon: 'cloud' };
+}
+
+function weatherIconMarkup(iconName) {
+  const icons = {
+    sun: `
+      <svg viewBox="0 0 120 120" role="img" aria-label="Clear sky">
+        <circle cx="60" cy="60" r="20"></circle>
+        <path d="M60 12v16M60 92v16M12 60h16M92 60h16M26 26l11 11M83 83l11 11M94 26L83 37M37 83L26 94"></path>
+      </svg>
+    `,
+    'partly-cloudy': `
+      <svg viewBox="0 0 120 120" role="img" aria-label="Partly cloudy">
+        <circle cx="45" cy="42" r="16"></circle>
+        <path d="M45 12v10M45 62v10M15 42h10M65 42h10M24 21l8 8M58 55l8 8M66 21l-8 8"></path>
+        <path d="M39 86h49c10 0 18-7 18-16s-8-16-18-16c-2-14-13-23-27-23-13 0-25 9-27 22-11 0-20 7-20 17 0 9 8 16 18 16h7"></path>
+      </svg>
+    `,
+    cloud: `
+      <svg viewBox="0 0 120 120" role="img" aria-label="Cloudy">
+        <path d="M22 82h70c12 0 21-8 21-19 0-10-9-19-21-19-3-17-16-28-33-28-16 0-30 11-33 27-14 0-25 9-25 20 0 11 10 19 21 19z"></path>
+      </svg>
+    `,
+    fog: `
+      <svg viewBox="0 0 120 120" role="img" aria-label="Fog">
+        <path d="M24 60h68c9 0 16-6 16-15 0-8-7-15-16-15-2-13-13-22-26-22-14 0-25 9-28 22-10 0-18 7-18 16 0 8 6 14 14 14"></path>
+        <path d="M18 76h62M30 91h72M17 106h48"></path>
+      </svg>
+    `,
+    drizzle: `
+      <svg viewBox="0 0 120 120" role="img" aria-label="Drizzle">
+        <path d="M22 68h70c12 0 21-8 21-19 0-10-9-19-21-19-3-17-16-28-33-28-16 0-30 11-33 27-14 0-25 9-25 20 0 11 10 19 21 19z"></path>
+        <path d="M38 82v10M60 82v10M82 82v10M48 100v8M70 100v8"></path>
+      </svg>
+    `,
+    rain: `
+      <svg viewBox="0 0 120 120" role="img" aria-label="Rain">
+        <path d="M22 64h70c12 0 21-8 21-19 0-10-9-19-21-19-3-17-16-28-33-28-16 0-30 11-33 27-14 0-25 9-25 20 0 11 10 19 21 19z"></path>
+        <path d="M38 80l-4 15M60 80l-4 15M82 80l-4 15M48 100l-3 12M70 100l-3 12"></path>
+      </svg>
+    `,
+    snow: `
+      <svg viewBox="0 0 120 120" role="img" aria-label="Snow">
+        <path d="M22 64h70c12 0 21-8 21-19 0-10-9-19-21-19-3-17-16-28-33-28-16 0-30 11-33 27-14 0-25 9-25 20 0 11 10 19 21 19z"></path>
+        <path d="M39 84v18M31 89l16 8M47 89l-16 8M76 84v18M68 89l16 8M84 89l-16 8"></path>
+      </svg>
+    `,
+    storm: `
+      <svg viewBox="0 0 120 120" role="img" aria-label="Thunderstorm">
+        <path d="M22 65h70c12 0 21-8 21-19 0-10-9-19-21-19-3-17-16-28-33-28-16 0-30 11-33 27-14 0-25 9-25 20 0 11 10 19 21 19z"></path>
+        <path d="M61 76l-13 21h13l-7 17 20-27H61z"></path>
+        <path d="M35 82l-3 12M88 82l-3 12"></path>
+      </svg>
+    `,
+  };
+
+  return icons[iconName] || icons.cloud;
+}
+
+function formatWeatherLocation(location) {
+  const parts = [location.name, location.admin1, location.country]
+    .filter(Boolean)
+    .filter((value, index, array) => array.indexOf(value) === index);
+
+  return parts.join(', ').toUpperCase();
+}
+
+function formatWeatherTime(localTime) {
+  if (!localTime) return 'TIME UNKNOWN';
+
+  const date = new Date(`${localTime}:00`);
+  if (Number.isNaN(date.getTime())) return localTime.replace('T', ' · ');
+
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+    .format(date)
+    .toUpperCase()
+    .replace(',', ' ·');
+}
+
+function windDirectionLabel(degrees) {
+  const directions = [
+    'N', 'NNE', 'NE', 'ENE',
+    'E', 'ESE', 'SE', 'SSE',
+    'S', 'SSW', 'SW', 'WSW',
+    'W', 'WNW', 'NW', 'NNW',
+  ];
+
+  const normalized = ((Number(degrees) % 360) + 360) % 360;
+  const index = Math.round(normalized / 22.5) % 16;
+  return directions[index];
+}
+
+function roundWeatherValue(value, decimals = 0) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  return number.toFixed(decimals);
+}
+
+function renderWeatherCard(location, weather) {
+  const current = weather.current;
+  const details = weatherDetailsForCode(current.weather_code);
+
+  const card = document.createElement('section');
+  card.className = 'weather-card response-line';
+  card.setAttribute('aria-label', `Current weather for ${formatWeatherLocation(location)}`);
+
+  const copy = document.createElement('div');
+  copy.className = 'weather-copy';
+
+  const locationLine = document.createElement('div');
+  locationLine.className = 'weather-location';
+  locationLine.textContent = formatWeatherLocation(location);
+
+  const timeLine = document.createElement('div');
+  timeLine.className = 'weather-time';
+  timeLine.textContent = formatWeatherTime(current.time);
+
+  const headline = document.createElement('div');
+  headline.className = 'weather-headline';
+  headline.textContent = `${roundWeatherValue(current.temperature_2m)}°C · ${details.label}`;
+
+  const data = document.createElement('div');
+  data.className = 'weather-data';
+  data.innerHTML = `
+    <span>HUMIDITY ${roundWeatherValue(current.relative_humidity_2m)}%</span>
+    <span>WIND ${windDirectionLabel(current.wind_direction_10m)} · ${roundWeatherValue(current.wind_speed_10m)} KM/H</span>
+    <span>PRECIPITATION ${roundWeatherValue(current.precipitation, 1)} MM</span>
+    <span>SOURCE: OPEN-METEO</span>
+  `;
+
+  const icon = document.createElement('div');
+  icon.className = 'weather-icon';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.innerHTML = weatherIconMarkup(details.icon);
+
+  copy.append(locationLine, timeLine, headline, data);
+  card.append(copy, icon);
+  transcriptEl.appendChild(card);
+  scrollTranscriptToBottom();
+}
+
+function loadWeatherCache(cityQuery) {
+  try {
+    const raw = sessionStorage.getItem(WEATHER_CACHE_KEY);
+    if (!raw) return null;
+
+    const cached = JSON.parse(raw);
+    const isSameCity = cached.cityQuery === cityQuery;
+    const isFresh = Date.now() - cached.savedAt < CONFIG.WEATHER_CACHE_MS;
+
+    return isSameCity && isFresh ? cached : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveWeatherCache(cityQuery, location, weather) {
+  try {
+    sessionStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify({
+      cityQuery,
+      location,
+      weather,
+      savedAt: Date.now(),
+    }));
+
+    sessionStorage.setItem(WEATHER_CITY_KEY, JSON.stringify({
+      name: location.name,
+      admin1: location.admin1 || '',
+      country: location.country || '',
+    }));
+  } catch {
+    // Weather still works if session storage is unavailable.
+  }
+}
+
+async function fetchJson(url, signal) {
+  const response = await fetch(url, {
+    signal,
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Weather receiver returned ${response.status}.`);
+  }
+
+  return response.json();
+}
+
+async function fetchWeatherForCity(cityQuery, signal) {
+  const geocodeUrl = new URL('https://geocoding-api.open-meteo.com/v1/search');
+  geocodeUrl.search = new URLSearchParams({
+    name: cityQuery,
+    count: '1',
+    language: 'en',
+    format: 'json',
+  });
+
+  const geocode = await fetchJson(geocodeUrl, signal);
+  const location = geocode.results?.[0];
+
+  if (!location) {
+    throw new Error('CITY_NOT_FOUND');
+  }
+
+  const forecastUrl = new URL('https://api.open-meteo.com/v1/forecast');
+  forecastUrl.search = new URLSearchParams({
+    latitude: String(location.latitude),
+    longitude: String(location.longitude),
+    current: [
+      'temperature_2m',
+      'relative_humidity_2m',
+      'precipitation',
+      'weather_code',
+      'wind_speed_10m',
+      'wind_direction_10m',
+    ].join(','),
+    temperature_unit: 'celsius',
+    wind_speed_unit: 'kmh',
+    precipitation_unit: 'mm',
+    timezone: 'auto',
+  });
+
+  const weather = await fetchJson(forecastUrl, signal);
+
+  if (!weather.current) {
+    throw new Error('WEATHER_UNAVAILABLE');
+  }
+
+  return { location, weather };
+}
+
+function weatherHelpText() {
+  return [
+    'WEATHER RECEIVER // STANDBY',
+    'CITY REQUIRED.',
+    'ENTER: /city <city, region or country>',
+    'METRIC UNITS ENABLED.',
+    'EXAMPLE: /city montreal, qc',
+  ].join('\n');
+}
+
+async function runWeatherCommand(cityQuery) {
+  const normalizedCity = cityQuery.trim();
+
+  if (!normalizedCity) {
+    addLine('response-line', weatherHelpText());
+    return;
+  }
+
+  const cached = loadWeatherCache(normalizedCity.toLowerCase());
+
+  if (cached) {
+    statusEl.textContent = 'WEATHER CACHED';
+    renderWeatherCard(cached.location, cached.weather);
+    statusEl.textContent = 'READY';
+    return;
+  }
+
+  if (activeRequestController) {
+    activeRequestController.abort();
+  }
+
+  activeRequestController = new AbortController();
+  const requestController = activeRequestController;
+
+  statusEl.textContent = 'LINKING...';
+  makeWeatherStatus(`WEATHER RECEIVER // LINKING TO ${normalizedCity.toUpperCase()}...`);
+
+  try {
+    const { location, weather } = await fetchWeatherForCity(
+      normalizedCity,
+      requestController.signal,
+    );
+
+    saveWeatherCache(normalizedCity.toLowerCase(), location, weather);
+    statusEl.textContent = 'SIGNAL RECEIVED';
+    renderWeatherCard(location, weather);
+  } catch (error) {
+    if (error.name === 'AbortError') return;
+
+    console.error('Weather receiver error:', error);
+    statusEl.textContent = 'SIGNAL LOST';
+
+    if (error.message === 'CITY_NOT_FOUND') {
+      addLine(
+        'response-line',
+        `CITY NOT FOUND: ${normalizedCity.toUpperCase()}\nTRY: /city city, region or country`,
+      );
+    } else {
+      addLine(
+        'response-line',
+        'WEATHER RECEIVER // SIGNAL LOST.\nCHECK CONNECTION AND TRY /city <place> AGAIN.',
+      );
+    }
+  } finally {
+    if (activeRequestController === requestController) {
+      activeRequestController = null;
+    }
+
+    window.setTimeout(() => {
+      if (!isGenerating) statusEl.textContent = 'READY';
+    }, 900);
+  }
 }
 
 function handleCommand(value) {
-  const command = value.trim().toLowerCase();
+  const command = value.trim();
+  const lower = command.toLowerCase();
 
-  if (command === '/help' || command === 'help') {
-    return 'commands: /help, /about, /status, /clear';
+  if (lower === '/weather' || lower === 'weather') {
+    return { type: 'weather-help' };
   }
 
-  if (command === '/about' || command === 'about') {
-    return 'jesseos v0.6: a local language-bank dream terminal. no cloud, tracking, or external api.';
+  if (lower.startsWith('/city ')) {
+    return {
+      type: 'weather-city',
+      city: command.slice(6).trim(),
+    };
   }
 
-  if (command === '/status' || command === 'status') {
-    return 'status: local dream engine online. language banks loaded. signal stable.';
+  if (lower === '/city') {
+    return { type: 'weather-help' };
   }
 
-  if (command === '/clear' || command === 'clear') {
+  if (lower === '/help' || lower === 'help') {
+    return {
+      type: 'text',
+      text: 'commands: /help, /about, /status, /clear, /weather, /city <place>',
+    };
+  }
+
+  if (lower === '/about' || lower === 'about') {
+    return {
+      type: 'text',
+      text: 'jesseos v0.7: a local language-bank dream terminal with an on-demand weather receiver. no geolocation, tracking, or external api keys.',
+    };
+  }
+
+  if (lower === '/status' || lower === 'status') {
+    return {
+      type: 'text',
+      text: 'status: local dream engine online. language banks loaded. weather receiver standing by. signal stable.',
+    };
+  }
+
+  if (lower === '/clear' || lower === 'clear') {
     transcriptEl.innerHTML = '';
-    return 'terminal cleared. the green room remains.';
+    return {
+      type: 'text',
+      text: 'terminal cleared. the green room remains.',
+    };
   }
 
   return null;
@@ -261,7 +657,22 @@ async function handleSubmit(event) {
 
   try {
     const commandReply = handleCommand(prompt);
-    const response = commandReply || generateResponse(prompt);
+
+    if (commandReply?.type === 'weather-help') {
+      statusEl.textContent = 'WEATHER READY';
+      addLine('response-line', weatherHelpText());
+      return;
+    }
+
+    if (commandReply?.type === 'weather-city') {
+      await runWeatherCommand(commandReply.city);
+      return;
+    }
+
+    const response = commandReply?.type === 'text'
+      ? commandReply.text
+      : generateResponse(prompt);
+
     statusEl.textContent = 'READY';
     await typeResponse(response);
   } catch (error) {
@@ -271,6 +682,12 @@ async function handleSubmit(event) {
   } finally {
     isGenerating = false;
     inputEl.disabled = false;
+
+    if (statusEl.textContent !== 'READY') {
+      window.setTimeout(() => {
+        if (!isGenerating) statusEl.textContent = 'READY';
+      }, 900);
+    }
   }
 }
 
@@ -392,7 +809,10 @@ function init() {
   updateShiftKeys();
 
   statusEl.textContent = 'READY';
-  addLine('system-line', 'jesseos v0.6 — language banks online. type /help for commands.');
+  addLine(
+    'system-line',
+    'jesseos v0.7 — language banks online. weather receiver ready. type /help for commands.',
+  );
 }
 
 if (document.readyState === 'loading') {
