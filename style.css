@@ -548,22 +548,52 @@ input {
 .weather-icon {
   justify-self: end;
   width: 100%;
-  color: var(--ink);
+  color: #82ff8d;
   filter:
-    drop-shadow(0 0 3px var(--glow-core))
-    drop-shadow(0 0 9px var(--glow-halo));
+    drop-shadow(0 0 1px rgba(218, 255, 218, 0.98))
+    drop-shadow(0 0 3px rgba(119, 255, 132, 0.96))
+    drop-shadow(0 0 8px rgba(68, 255, 90, 0.82))
+    drop-shadow(0 0 16px rgba(38, 255, 73, 0.52))
+    drop-shadow(0 0 29px rgba(32, 255, 68, 0.26));
 }
 
 .weather-icon svg {
   display: block;
   width: 100%;
   height: auto;
+  overflow: visible;
   fill: none;
   stroke: currentColor;
-  stroke-width: 2.2;
+  stroke-width: 2.65;
   stroke-linecap: round;
   stroke-linejoin: round;
+  opacity: 0.97;
 }
+.weather-icon::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  left: 50%;
+  width: 78%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    rgba(99, 255, 112, 0.18) 0%,
+    rgba(45, 255, 74, 0.09) 36%,
+    transparent 72%
+  );
+  filter: blur(10px);
+}
+
+.weather-icon {
+  position: relative;
+  isolation: isolate;
+}
+
 
 @media (max-width: 420px) {
   .weather-card {
