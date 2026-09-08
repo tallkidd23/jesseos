@@ -1169,6 +1169,55 @@ function initTouchKeyboard() {
     });
   });
 }
+function virtualKeySelector(key) {
+  const selectors = {
+    Enter: '[data-key="enter"]',
+    Backspace: '[data-key="backspace"]',
+    Escape: '[data-key="escape"]',
+    Shift: '[data-key="shift"]',
+    Control: '[data-key="control"]',
+    ' ': '[data-key="space"]',
+    Tab: '[data-key="tab"]',
+  };
+
+  if (selectors[key]) return selectors[key];
+
+  if (/^[a-zA-Z]$/.test(key)) {
+    return `[data-key="${key.toLowerCase()}"]`;
+  }
+
+  if (/^[0-9]$/.test(key) || ['/', '+', ':', ',', '.'].includes(key)) {
+    return `[data-key="${key}"]`;
+  }
+
+  return '';
+}
+
+function setVirtualKeyPressed(key, pressed) {
+  const selector = virtualKeySelector(key);
+  if (!selector) return;
+
+  document.querySelectorAll(selector).forEach(button => {
+    button.classList.toggle('is-pressed', pressed);
+  });
+}
+
+function initPhysicalKeyAnimation() {
+  window.addEventListener('keydown', event => {
+    if (event.repeat) return;
+    setVirtualKeyPressed(event.key, true);
+  });
+
+  window.addEventListener('keyup', event => {
+    setVirtualKeyPressed(event.key, false);
+  });
+
+  window.addEventListener('blur', () => {
+    document.querySelectorAll('.keyboard .is-pressed').forEach(button => {
+      button.classList.remove('is-pressed');
+    });
+  });
+}
 
 function init() {
   transcriptEl = document.getElementById('transcript');
@@ -1193,6 +1242,7 @@ function init() {
 
   restoreLatestNewsResults();
   initTouchKeyboard();
+  initPhysicalKeyAnimation();
   updateShiftKeys();
 
   statusEl.textContent = 'READY';
