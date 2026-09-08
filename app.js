@@ -20,21 +20,22 @@ const NEWS_RESULTS_KEY = 'jesseos-news-results-v1';
 const NEWS_CHANNELS = {
   headlines: {
     label: 'WORLD HEADLINES',
-    query: 'world',
+    query: 'world sourcelang:English',
   },
   canada: {
     label: 'CANADIAN NEWS',
-    query: 'Canada',
+    query: 'Canada sourcelang:English',
   },
   science: {
     label: 'SCIENCE',
-    query: 'science',
+    query: 'science sourcelang:English',
   },
   tech: {
     label: 'TECHNOLOGY',
-    query: 'technology',
+    query: 'technology sourcelang:English',
   },
 };
+
 
 let transcriptEl;
 let inputEl;
@@ -949,7 +950,12 @@ function handleCommand(value) {
     const topic = command.slice(7).trim();
 
     return topic
-      ? { type: 'news-query', label: `TOPIC: ${topic.toUpperCase()}`, query: topic }
+      ? {
+    type: 'news-query',
+    label: `TOPIC: ${topic.toUpperCase()}`,
+    query: `${topic} sourcelang:English`,
+  }
+
       : { type: 'news-help' };
   }
 
