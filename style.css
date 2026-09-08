@@ -459,14 +459,25 @@ input {
   background: linear-gradient(180deg, #aa3842, #65131d);
 }
 
-.key:active,
-.key.is-active {
-  transform: translateY(2px);
-  box-shadow:
-    inset 1px 1px rgba(26, 11, 8, 0.5),
-    0 0 0 #20070b;
-  filter: brightness(0.87);
+.key {
+  transition:
+    transform 55ms linear,
+    filter 55ms linear,
+    box-shadow 55ms linear;
+  will-change: transform;
 }
+
+.key:active,
+.key.is-active,
+.key.is-pressed {
+  transform: translateY(3px);
+  box-shadow:
+    inset 1px 2px rgba(26, 11, 8, 0.6),
+    inset 0 0 6px rgba(18, 4, 5, 0.34),
+    0 0 0 #20070b;
+  filter: brightness(0.8) saturate(1.08);
+}
+
 
 .key-delete,
 .key-tab,
