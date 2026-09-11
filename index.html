@@ -1,100 +1,141 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JESSEOS</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#180508">
+  <meta name="description" content="JesseOS — a local, offline-first dream terminal.">
+  <title>JesseOS v0.6 — LBSTRCOMP</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="crt-overlay"></div>
-    <div class="scanlines"></div>
-    
-    <div class="terminal-container">
-        <div class="terminal" id="terminal">
-            <div id="output"></div>
-            <div class="input-line">
-                <span id="prompt">B:\></span>
-                <span id="input-display"></span><span id="cursor" class="cursor">█</span>
-                <input type="text" id="command-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-            </div>
-        </div>
-    </div>
+  <main class="room" aria-label="JesseOS LBSTRCOMP workstation">
+    <div class="wall-glow" aria-hidden="true"></div>
 
-    <div class="keyboard" id="keyboard">
-        <div class="keyboard-row">
-            <div class="key" data-key="`">`</div>
-            <div class="key" data-key="1">1</div>
-            <div class="key" data-key="2">2</div>
-            <div class="key" data-key="3">3</div>
-            <div class="key" data-key="4">4</div>
-            <div class="key" data-key="5">5</div>
-            <div class="key" data-key="6">6</div>
-            <div class="key" data-key="7">7</div>
-            <div class="key" data-key="8">8</div>
-            <div class="key" data-key="9">9</div>
-            <div class="key" data-key="0">0</div>
-            <div class="key" data-key="-">-</div>
-            <div class="key" data-key="=">=</div>
-            <div class="key special-key" data-key="Backspace">⌫</div>
+    <section class="desk">
+      <section class="monitor" aria-label="LBSTRCOMP monitor">
+        <div class="monitor-vent" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span>
         </div>
-        <div class="keyboard-row">
-            <div class="key" data-key="Tab">Tab</div>
-            <div class="key" data-key="q">Q</div>
-            <div class="key" data-key="w">W</div>
-            <div class="key" data-key="e">E</div>
-            <div class="key" data-key="r">R</div>
-            <div class="key" data-key="t">T</div>
-            <div class="key" data-key="y">Y</div>
-            <div class="key" data-key="u">U</div>
-            <div class="key" data-key="i">I</div>
-            <div class="key" data-key="o">O</div>
-            <div class="key" data-key="p">P</div>
-            <div class="key" data-key="[">[</div>
-            <div class="key" data-key="]">]</div>
-            <div class="key" data-key="\">|</div>
-        </div>
-        <div class="keyboard-row">
-            <div class="key" data-key="CapsLock">Caps</div>
-            <div class="key" data-key="a">A</div>
-            <div class="key" data-key="s">S</div>
-            <div class="key" data-key="d">D</div>
-            <div class="key" data-key="f">F</div>
-            <div class="key" data-key="g">G</div>
-            <div class="key" data-key="h">H</div>
-            <div class="key" data-key="j">J</div>
-            <div class="key" data-key="k">K</div>
-            <div class="key" data-key="l">L</div>
-            <div class="key" data-key=";">;</div>
-            <div class="key" data-key="'">'</div>
-            <div class="key" data-key="Enter">Enter</div>
-        </div>
-        <div class="keyboard-row">
-            <div class="key" data-key="Shift">Shift</div>
-            <div class="key" data-key="z">Z</div>
-            <div class="key" data-key="x">X</div>
-            <div class="key" data-key="c">C</div>
-            <div class="key" data-key="v">V</div>
-            <div class="key" data-key="b">B</div>
-            <div class="key" data-key="n">N</div>
-            <div class="key" data-key="m">M</div>
-            <div class="key" data-key=",">,</div>
-            <div class="key" data-key=".">.</div>
-            <div class="key" data-key="/">/</div>
-            <div class="key special-key" data-key="Shift">Shift</div>
-        </div>
-        <div class="keyboard-row">
-            <div class="key" data-key="Control">Ctrl</div>
-            <div class="key" data-key="Meta">⊞</div>
-            <div class="key" data-key="Alt">Alt</div>
-            <div class="key space-key" data-key=" ">SPACE</div>
-            <div class="key" data-key="Alt">Alt</div>
-            <div class="key" data-key="Meta">⊞</div>
-            <div class="key" data-key="ContextMenu">Menu</div>
-            <div class="key" data-key="Control">Ctrl</div>
-        </div>
-    </div>
 
-    <script src="app.js"></script>
+        <div class="screen-bezel">
+          <div class="screen-glass">
+            <main class="terminal-shell" aria-label="JesseOS terminal">
+              <header class="terminal-header">
+                <span>JESSEOS v0.6</span>
+                <span id="status" aria-live="polite">BOOTING...</span>
+              </header>
+
+              <section
+                id="transcript"
+                class="transcript"
+                aria-live="polite"
+                aria-label="Terminal output"
+              ></section>
+
+              <form id="input-form" class="input-row" autocomplete="off">
+                <label class="prompt" for="input">input/</label>
+                <input
+                  id="input"
+                  name="input"
+                  type="text"
+                  inputmode="text"
+                  enterkeyhint="send"
+                  autocomplete="off"
+                  autocapitalize="sentences"
+                  spellcheck="true"
+                  aria-label="Message JesseOS"
+                >
+              </form>
+            </main>
+          </div>
+        </div>
+
+        <footer class="monitor-lower-bezel">
+          <span class="brand">LBSTRCOMP</span>
+
+          <span class="power-cluster" aria-label="Power on">
+            <span class="power-led" aria-hidden="true"></span>
+            <span class="power-label">POWER</span>
+          </span>
+        </footer>
+
+        <div class="monitor-foot" aria-hidden="true"></div>
+      </section>
+
+      <section class="keyboard" aria-label="LBSTRCOMP touch keyboard">
+        <div class="key-row key-row-numbers">
+          <button class="key key-red key-action" type="button" data-key="escape" aria-label="Escape">ESC</button>
+          <button class="key" type="button" data-key="1">1</button>
+          <button class="key" type="button" data-key="2">2</button>
+          <button class="key" type="button" data-key="3">3</button>
+          <button class="key" type="button" data-key="4">4</button>
+          <button class="key" type="button" data-key="5">5</button>
+          <button class="key" type="button" data-key="6">6</button>
+          <button class="key" type="button" data-key="7">7</button>
+          <button class="key" type="button" data-key="8">8</button>
+          <button class="key" type="button" data-key="9">9</button>
+          <button class="key" type="button" data-key="0">0</button>
+          <button class="key key-delete key-action" type="button" data-key="backspace" aria-label="Delete one character">DEL</button>
+        </div>
+
+        <div class="key-row key-row-letters">
+          <button class="key key-tab key-action" type="button" data-key="tab">TAB</button>
+          <button class="key" type="button" data-key="q">Q</button>
+          <button class="key" type="button" data-key="w">W</button>
+          <button class="key" type="button" data-key="e">E</button>
+          <button class="key" type="button" data-key="r">R</button>
+          <button class="key" type="button" data-key="t">T</button>
+          <button class="key" type="button" data-key="y">Y</button>
+          <button class="key" type="button" data-key="u">U</button>
+          <button class="key" type="button" data-key="i">I</button>
+          <button class="key" type="button" data-key="o">O</button>
+          <button class="key" type="button" data-key="p">P</button>
+          <button class="key" type="button" data-key="+">+</button>
+        </div>
+
+        <div class="key-row key-row-letters">
+          <button class="key key-ctrl key-action" type="button" data-key="control">CTRL</button>
+          <button class="key" type="button" data-key="a">A</button>
+          <button class="key" type="button" data-key="s">S</button>
+          <button class="key" type="button" data-key="d">D</button>
+          <button class="key" type="button" data-key="f">F</button>
+          <button class="key" type="button" data-key="g">G</button>
+          <button class="key" type="button" data-key="h">H</button>
+          <button class="key" type="button" data-key="j">J</button>
+          <button class="key" type="button" data-key="k">K</button>
+          <button class="key" type="button" data-key="l">L</button>
+          <button class="key" type="button" data-key=":">:</button>
+          <button class="key key-return key-action" type="button" data-key="enter">RETURN</button>
+        </div>
+
+        <div class="key-row key-row-letters">
+          <button class="key key-shift key-action" type="button" data-key="shift" aria-label="Shift">SHIFT</button>
+          <button class="key" type="button" data-key="z">Z</button>
+          <button class="key" type="button" data-key="x">X</button>
+          <button class="key" type="button" data-key="c">C</button>
+          <button class="key" type="button" data-key="v">V</button>
+          <button class="key" type="button" data-key="b">B</button>
+          <button class="key" type="button" data-key="n">N</button>
+          <button class="key" type="button" data-key="m">M</button>
+          <button class="key" type="button" data-key=",">,</button>
+          <button class="key" type="button" data-key=".">.</button>
+          <button class="key key-shift key-action" type="button" data-key="shift" aria-label="Shift">SHIFT</button>
+        </div>
+
+        <div class="key-row key-row-bottom">
+          <button class="key key-red key-small key-action" type="button" data-key="run">RUN</button>
+          <button class="key key-red key-small key-action" type="button" data-key="stop">STOP</button>
+          <button class="key key-space key-action" type="button" data-key="space">SPACE</button>
+          <button class="key key-small key-action" type="button" data-key="f1">F1</button>
+          <button class="key key-small key-action" type="button" data-key="f3">F3</button>
+          <button class="key key-small key-action" type="button" data-key="f5">F5</button>
+          <button class="key key-small key-action" type="button" data-key="/">/</button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
 </body>
 </html>
