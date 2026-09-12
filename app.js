@@ -3,15 +3,72 @@
    #transcript, #input, #status, #input-form, .keyboard [data-key]
 */
 
-const CONFIG = {
-  TYPE_DELAY_MIN: 18,
-  TYPE_DELAY_MAX: 42,
-  PUNCTUATION_PAUSE_BASE: 70,
-  PUNCTUATION_PAUSE_END: 130,
-  WEATHER_CACHE_MS: 10 * 60 * 1000,
-  NEWS_CACHE_MS: 5 * 60 * 1000,
-  NEWS_MAX_ITEMS: 4,
-};
+@@
+ const CONFIG = {
+   TYPE_DELAY_MIN: 18,
+   TYPE_DELAY_MAX: 42,
+   PUNCTUATION_PAUSE_BASE: 70,
+   PUNCTUATION_PAUSE_END: 130,
+   WEATHER_CACHE_MS: 10 * 60 * 1000,
+   NEWS_CACHE_MS: 5 * 60 * 1000,
+   NEWS_MAX_ITEMS: 4,
+ };
+
++let currentDir = '';
+ let transcriptEl;
+ let inputEl;
+ let statusEl;
+ let isGenerating = false;
+ let shiftEnabled = false;
+ let activeRequestController = null;
+ let latestNewsResults = [];
+
+@@
+-function init() {
++function updatePrompt() {
++  const promptEl = document.getElementById('prompt');
++  if (!promptEl) return;
++
++  // Normalize currentDir: remove trailing slash unless it's root
++  let dir = (currentDir || '').replace(/\/$/, '');
++  const displayDir = dir ? `\\${dir}` : '';
++  promptEl.textContent = `B:${displayDir}>`;
++}
++
++function init() {
+   transcriptEl = document.getElementById('transcript');
+   inputEl = document.getElementById('input');
+   statusEl = document.getElementById('status');
+
+   if (!transcriptEl || !inputEl || !statusEl) {
+     console.error('JesseOS markup mismatch.');
+     return;
+   }
+
+   const form = document.getElementById('input-form');
+   if (form) {
+     form.addEventListener('submit', handleSubmit);
+   }
+
+   inputEl.addEventListener('keydown', event => {
+     if (event.key === 'Enter') {
+       handleSubmit(event);
+     }
+   });
+
+   restoreLatestNewsResults();
+   initTouchKeyboard();
+   initPhysicalKeyAnimation();
+   updateShiftKeys();
+
++  updatePrompt();
+   statusEl.textContent = 'READY';
+   addLine(
+     'system-line',
+     'jesseos v0.8 — language banks online. weather + news receivers ready. type /help for commands.',
+   );
+ }
+
 
 const WEATHER_CACHE_KEY = 'jesseos-weather-cache-v1';
 const NEWS_CACHE_KEY = 'jesseos-news-cache-v1';
