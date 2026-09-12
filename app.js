@@ -1,5 +1,7 @@
-/* JesseOS B-drive command layer and original receiver hooks.
-   Replace the existing app.js with this complete file. */
+/* JesseOS // LBSTRCOMP command shell
+   Uses the restored visual HTML contract:
+   #transcript, #input, #status, #input-form, .keyboard [data-key]
+*/
 
 const CONFIG = {
   TYPE_DELAY_MIN: 18,
@@ -219,8 +221,7 @@ function generateResponse(prompt) {
   const lines = shuffle(compatible[mode]).map(bank => pickRandom(BANKS[bank]));
   const first = pickRandom(frames).replace('{anchor}', anchor).replace('{line}', lines[0]);
   const second = Math.random() < 0.45 ? (Math.random() < 0.6 ? pickRandom(SECOND_LINES) : lines[1]) : '';
-  const response = [first, second].filter(Boolean).join(' ').replace(/^./, character => character.toUpperCase());
-  return response;
+  return [first, second].filter(Boolean).join(' ').replace(/^./, character => character.toUpperCase());
 }
 
 function addLine(className, text) {
@@ -272,12 +273,12 @@ function promptPath() {
 }
 
 function echoCommand(command) {
-  addLine('user-line', `${promptPath()}> ${command}`);
+  addLine('user-line', `${promptPath()}${command}`);
 }
 
 function setInputValue(value, caret = value.length) {
   inputEl.value = value;
-  try { inputEl.setSelectionRange(caret, caret); } catch { /* iOS readonly mode */ }
+  try { inputEl.setSelectionRange(caret, caret); } catch { /* iOS/browser selection unavailable */ }
 }
 
 function clearInput() {
@@ -403,7 +404,7 @@ async function fetchWeatherForCity(cityQuery, signal) {
 }
 
 function weatherHelpText() {
-  return 'WEATHER RECEIVER // STANDBY\n\nCURRENT.EXE <CITY, REGION>\n\nEXAMPLE:\nCURRENT.EXE MONTREAL, QC\n\nMETRIC UNITS ENABLED.';
+  return 'WEATHER RECEIVER // STANDBY\n\nCURRENT.EXE <CITY, REGION>\nEXAMPLE: CURRENT.EXE MONTREAL, QC';
 }
 
 async function runWeatherCommand(cityQuery) {
@@ -610,8 +611,8 @@ function changeDirectory(argument) {
   const target = String(argument || '').trim().toUpperCase().replace(/\//g, '\\');
   if (!target) { addLine('response-line', promptPath()); return; }
   if (target === '\\' || target === 'B:\\' || target === 'B:') {
-    currentDirectory = 'ROOT';
-    addLine('response-line', currentDirectory === 'ROOT' ? 'DIRECTORY CHANGED TO B:\\' : 'DIRECTORY CHANGED TO B:\\');
+    if (currentDirectory === 'ROOT') addLine('response-line', 'ALREADY AT B:\\ ROOT.');
+    else { currentDirectory = 'ROOT'; addLine('response-line', 'DIRECTORY CHANGED TO B:\\'); }
     return;
   }
   if (target === '..') {
@@ -768,11 +769,11 @@ function handleTouchKey(key) {
 
 function virtualKeySelector(key) {
   const aliases = {
-    Enter: '[data-key="enter"]', Backspace: '[data-key="backspace"]', Escape: '[data-key="escape"]', Shift: '[data-key="shift"]', Control: '[data-key="control"]', ' ': '[data-key="space"]', Tab: '[data-key="tab"]', F3: '[data-key="f3"]', '-': '[data-key="-"]', '=': '[data-key="+"]', ';': '[data-key=":"]',
+    Enter: '[data-key="enter"]', Backspace: '[data-key="backspace"]', Escape: '[data-key="escape"]', Shift: '[data-key="shift"]', Control: '[data-key="control"]', ' ': '[data-key="space"]', Tab: '[data-key="tab"]', F3: '[data-key="f3"]',
   };
   if (aliases[key]) return aliases[key];
   if (/^[a-zA-Z]$/.test(key)) return `[data-key="${key.toLowerCase()}"]`;
-  if (/^[0-9]$/.test(key) || ['/', '+', ':', ',', '.', "'", '[', ']'].includes(key)) return `[data-key="${key}"]`;
+  if (/^[0-9]$/.test(key) || ['/', '+', ':', ',', '.', "'", '[', ']', '-'].includes(key)) return `[data-key="${key}"]`;
   return '';
 }
 
@@ -784,27 +785,52 @@ function setVirtualKeyPressed(key, pressed) {
 
 function initTouchKeyboard() {
   document.querySelectorAll('.keyboard [data-key]').forEach(button => {
-    button.addEventListener('pointerdown', event => { event.preventDefault(); button.classList.add('is-pressed'); });
-    button.addEventListener('pointerup', event => { event.preventDefault(); button.classList.remove('is-pressed'); handleTouchKey(button.dataset.key); });
+    button.addEventListener('pointerdown', event => {
+      event.preventDefault();
+      button.classList.add('is-pressed');
+    });
+    button.addEventListener('pointerup', event => {
+      event.preventDefault();
+      button.classList.remove('is-pressed');
+      handleTouchKey(button.dataset.key);
+    });
     button.addEventListener('pointercancel', () => button.classList.remove('is-pressed'));
-    button.addEventListener('pointerleave', event => { if (event.buttons === 0) button.classList.remove('is-pressed'); });
+    button.addEventListener('pointerleave', event => {
+      if (event.buttons === 0) button.classList.remove('is-pressed');
+    });
   });
 }
 
 function initPhysicalKeyboard() {
   window.addEventListener('keydown', event => {
     setVirtualKeyPressed(event.key, true);
-    if (event.key === 'F3') { event.preventDefault(); recallLastCommand(); return; }
-    if (event.key === 'Enter') { event.preventDefault(); submitCurrentCommand(); return; }
+    if (event.key === 'F3') {
+      event.preventDefault();
+      recallLastCommand();
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      submitCurrentCommand();
+      return;
+    }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (historyIndex > 0) { historyIndex -= 1; setInputValue(commandHistory[historyIndex]); }
+      if (historyIndex > 0) {
+        historyIndex -= 1;
+        setInputValue(commandHistory[historyIndex]);
+      }
       return;
     }
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (historyIndex < commandHistory.length - 1) { historyIndex += 1; setInputValue(commandHistory[historyIndex]); }
-      else { historyIndex = commandHistory.length; clearInput(); }
+      if (historyIndex < commandHistory.length - 1) {
+        historyIndex += 1;
+        setInputValue(commandHistory[historyIndex]);
+      } else {
+        historyIndex = commandHistory.length;
+        clearInput();
+      }
     }
   });
   window.addEventListener('keyup', event => setVirtualKeyPressed(event.key, false));
@@ -816,9 +842,14 @@ function init() {
   inputEl = document.getElementById('input');
   statusEl = document.getElementById('status');
   const form = document.getElementById('input-form');
-  if (!transcriptEl || !inputEl || !statusEl || !form) { console.error('JesseOS markup mismatch.'); return; }
+  if (!transcriptEl || !inputEl || !statusEl || !form) {
+    console.error('JesseOS markup mismatch.');
+    return;
+  }
   form.addEventListener('submit', submitCurrentCommand);
-  inputEl.addEventListener('keydown', event => { if (event.key === 'Enter') submitCurrentCommand(event); });
+  inputEl.addEventListener('keydown', event => {
+    if (event.key === 'Enter') submitCurrentCommand(event);
+  });
   restoreLatestNewsResults();
   initTouchKeyboard();
   initPhysicalKeyboard();
