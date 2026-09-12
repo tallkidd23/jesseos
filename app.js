@@ -1,74 +1,27 @@
-/* JesseOS // LBSTRCOMP command shell
-   Uses the restored visual HTML contract:
-   #transcript, #input, #status, #input-form, .keyboard [data-key]
+/*
+  JESSEOS // LBSTRCOMP
+  Complete replacement app.js
+
+  This version intentionally keeps the original JesseOS functions:
+  - local language-bank dream responses
+  - on-demand weather through Open-Meteo
+  - on-demand news through GDELT
+  - cached weather/news results
+  - touch keyboard plus physical-key animation
+
+  It adds a safe B: shell on top of that behavior. The shell does not build
+  paths by blindly appending names, which prevents B:\WEATHER\WEATHER\ bugs.
 */
 
-@@
- const CONFIG = {
-   TYPE_DELAY_MIN: 18,
-   TYPE_DELAY_MAX: 42,
-   PUNCTUATION_PAUSE_BASE: 70,
-   PUNCTUATION_PAUSE_END: 130,
-   WEATHER_CACHE_MS: 10 * 60 * 1000,
-   NEWS_CACHE_MS: 5 * 60 * 1000,
-   NEWS_MAX_ITEMS: 4,
- };
-
-+let currentDir = '';
- let transcriptEl;
- let inputEl;
- let statusEl;
- let isGenerating = false;
- let shiftEnabled = false;
- let activeRequestController = null;
- let latestNewsResults = [];
-
-@@
--function init() {
-+function updatePrompt() {
-+  const promptEl = document.getElementById('prompt');
-+  if (!promptEl) return;
-+
-+  // Normalize currentDir: remove trailing slash unless it's root
-+  let dir = (currentDir || '').replace(/\/$/, '');
-+  const displayDir = dir ? `\\${dir}` : '';
-+  promptEl.textContent = `B:${displayDir}>`;
-+}
-+
-+function init() {
-   transcriptEl = document.getElementById('transcript');
-   inputEl = document.getElementById('input');
-   statusEl = document.getElementById('status');
-
-   if (!transcriptEl || !inputEl || !statusEl) {
-     console.error('JesseOS markup mismatch.');
-     return;
-   }
-
-   const form = document.getElementById('input-form');
-   if (form) {
-     form.addEventListener('submit', handleSubmit);
-   }
-
-   inputEl.addEventListener('keydown', event => {
-     if (event.key === 'Enter') {
-       handleSubmit(event);
-     }
-   });
-
-   restoreLatestNewsResults();
-   initTouchKeyboard();
-   initPhysicalKeyAnimation();
-   updateShiftKeys();
-
-+  updatePrompt();
-   statusEl.textContent = 'READY';
-   addLine(
-     'system-line',
-     'jesseos v0.8 — language banks online. weather + news receivers ready. type /help for commands.',
-   );
- }
-
+const CONFIG = {
+  TYPE_DELAY_MIN: 18,
+  TYPE_DELAY_MAX: 42,
+  PUNCTUATION_PAUSE_BASE: 70,
+  PUNCTUATION_PAUSE_END: 130,
+  WEATHER_CACHE_MS: 10 * 60 * 1000,
+  NEWS_CACHE_MS: 5 * 60 * 1000,
+  NEWS_MAX_ITEMS: 4,
+};
 
 const WEATHER_CACHE_KEY = 'jesseos-weather-cache-v1';
 const NEWS_CACHE_KEY = 'jesseos-news-cache-v1';
@@ -79,55 +32,6 @@ const NEWS_CHANNELS = {
   canada: { label: 'CANADIAN NEWS', query: 'Canada sourcelang:English' },
   science: { label: 'SCIENCE', query: 'science sourcelang:English' },
   tech: { label: 'TECHNOLOGY', query: 'technology sourcelang:English' },
-};
-
-const DIRECTORIES = {
-  ROOT: {
-    path: 'B:\\',
-    entries: [
-      ['WEATHER', '<DIR>', 'LIVE LOCAL CONDITIONS'],
-      ['NEWS', '<DIR>', 'HEADLINES AND TOPICS'],
-      ['BOARD', '<DIR>', 'LOCAL MESSAGE ARCHIVE'],
-      ['GAMES', '<DIR>', 'INSTALLED PROGRAMS'],
-      ['ABOUT.TXT', 'FILE', 'SYSTEM INFORMATION'],
-      ['STATUS.EXE', 'EXE', 'MACHINE STATUS'],
-      ['CLS.EXE', 'EXE', 'CLEAR SCREEN'],
-      ['HELP.EXE', 'EXE', 'COMMAND INDEX'],
-    ],
-  },
-  WEATHER: {
-    path: 'B:\\WEATHER\\',
-    entries: [
-      ['CURRENT.EXE', 'EXE', 'CURRENT WEATHER BY CITY'],
-      ['HELP.TXT', 'FILE', 'WEATHER RECEIVER NOTES'],
-    ],
-  },
-  NEWS: {
-    path: 'B:\\NEWS\\',
-    entries: [
-      ['HEADLINES.EXE', 'EXE', 'WORLD HEADLINES'],
-      ['CANADA.EXE', 'EXE', 'CANADIAN SIGNAL'],
-      ['SCIENCE.EXE', 'EXE', 'SCIENCE SIGNAL'],
-      ['TECH.EXE', 'EXE', 'TECHNOLOGY SIGNAL'],
-      ['TOPIC.EXE', 'EXE', 'SEARCH CUSTOM TOPIC'],
-      ['OPEN.EXE', 'EXE', 'OPEN STORED NEWS ITEM'],
-      ['HELP.TXT', 'FILE', 'NEWS RECEIVER NOTES'],
-    ],
-  },
-  BOARD: {
-    path: 'B:\\BOARD\\',
-    entries: [
-      ['README.TXT', 'FILE', 'LOCAL MESSAGE ARCHIVE'],
-      ['LISTEN.EXE', 'EXE', 'OPEN DREAM CHANNEL'],
-    ],
-  },
-  GAMES: {
-    path: 'B:\\GAMES\\',
-    entries: [
-      ['PLANETRUNNER.EXE', 'EXE', 'ORBITAL NAVIGATION PROGRAM'],
-      ['README.TXT', 'FILE', 'PROGRAM DIRECTORY'],
-    ],
-  },
 };
 
 const BANKS = {
@@ -234,7 +138,56 @@ let latestNewsResults = [];
 let currentDirectory = 'ROOT';
 let commandHistory = [];
 let historyIndex = -1;
-let lastCommand = '';
+let hardwareKeyboardMode = false;
+
+const DIRECTORIES = {
+  ROOT: {
+    path: 'B:\\',
+    entries: [
+      ['WEATHER', '<DIR>', 'LIVE LOCAL CONDITIONS'],
+      ['NEWS', '<DIR>', 'HEADLINES AND TOPICS'],
+      ['BOARD', '<DIR>', 'LOCAL MESSAGE ARCHIVE'],
+      ['GAMES', '<DIR>', 'INSTALLED PROGRAMS'],
+      ['ABOUT.TXT', 'FILE', 'SYSTEM INFORMATION'],
+      ['STATUS.EXE', 'EXE', 'MACHINE STATUS'],
+      ['CLS.EXE', 'EXE', 'CLEAR SCREEN'],
+      ['HELP.EXE', 'EXE', 'COMMAND INDEX'],
+    ],
+  },
+  WEATHER: {
+    path: 'B:\\WEATHER\\',
+    entries: [
+      ['CURRENT.EXE', 'EXE', 'CURRENT WEATHER BY CITY'],
+      ['HELP.TXT', 'FILE', 'WEATHER RECEIVER NOTES'],
+    ],
+  },
+  NEWS: {
+    path: 'B:\\NEWS\\',
+    entries: [
+      ['HEADLINES.EXE', 'EXE', 'WORLD HEADLINES'],
+      ['CANADA.EXE', 'EXE', 'CANADIAN SIGNAL'],
+      ['SCIENCE.EXE', 'EXE', 'SCIENCE SIGNAL'],
+      ['TECH.EXE', 'EXE', 'TECHNOLOGY SIGNAL'],
+      ['TOPIC.EXE', 'EXE', 'SEARCH CUSTOM TOPIC'],
+      ['OPEN.EXE', 'EXE', 'OPEN STORED NEWS ITEM'],
+      ['HELP.TXT', 'FILE', 'NEWS RECEIVER NOTES'],
+    ],
+  },
+  BOARD: {
+    path: 'B:\\BOARD\\',
+    entries: [
+      ['README.TXT', 'FILE', 'LOCAL MESSAGE ARCHIVE'],
+      ['LISTEN.EXE', 'EXE', 'OPEN DREAM CHANNEL'],
+    ],
+  },
+  GAMES: {
+    path: 'B:\\GAMES\\',
+    entries: [
+      ['PLANETRUNNER.EXE', 'EXE', 'ORBITAL NAVIGATION PROGRAM'],
+      ['README.TXT', 'FILE', 'PROGRAM DIRECTORY'],
+    ],
+  },
+};
 
 function pickRandom(items) {
   return items[Math.floor(Math.random() * items.length)];
@@ -245,13 +198,19 @@ function shuffle(items) {
 }
 
 function tokenize(text) {
-  return String(text || '').toLowerCase().replace(/[^a-z0-9\s'-]/g, '').split(/\s+/).filter(Boolean);
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s'-]/g, '')
+    .split(/\s+/)
+    .filter(Boolean);
 }
 
 function extractAnchors(text) {
   const words = tokenize(text).filter(word => !STOPWORDS.has(word));
   const anchors = [];
-  for (let index = 0; index < words.length - 1; index += 1) anchors.push(`${words[index]} ${words[index + 1]}`);
+  for (let index = 0; index < words.length - 1; index += 1) {
+    anchors.push(`${words[index]} ${words[index + 1]}`);
+  }
   anchors.push(...words);
   return [...new Set(anchors.filter(anchor => anchor.length > 2))];
 }
@@ -265,20 +224,37 @@ function isReflective(text) {
   return /\b(feel|feeling|sad|afraid|anxious|love|grief|help|name|remember|good|weird|lonely|happy|tired|worry|hope)\b/i.test(text);
 }
 
-function generateResponse(prompt) {
-  const anchors = extractAnchors(prompt);
-  const anchor = pickRandom(anchors.length ? anchors : ['this moment']);
-  const mode = isQuestion(prompt) ? 'question' : isReflective(prompt) ? 'reflective' : 'dream';
-  const frames = mode === 'question' ? QUESTION_FRAMES : mode === 'reflective' ? REFLECTIVE_FRAMES : DREAM_FRAMES;
+function chooseMode(text) {
+  if (isQuestion(text)) return 'question';
+  if (isReflective(text)) return 'reflective';
+  return 'dream';
+}
+
+function chooseLines(mode) {
   const compatible = {
     question: ['science', 'psychology', 'terminal', 'ai', 'social'],
     reflective: ['empathy', 'psychology', 'social', 'dream', 'terminal'],
     dream: ['dream', 'terminal', 'science', 'ai', 'social'],
   };
-  const lines = shuffle(compatible[mode]).map(bank => pickRandom(BANKS[bank]));
-  const first = pickRandom(frames).replace('{anchor}', anchor).replace('{line}', lines[0]);
-  const second = Math.random() < 0.45 ? (Math.random() < 0.6 ? pickRandom(SECOND_LINES) : lines[1]) : '';
-  return [first, second].filter(Boolean).join(' ').replace(/^./, character => character.toUpperCase());
+  return shuffle(compatible[mode]).map(bank => pickRandom(BANKS[bank]));
+}
+
+function sentenceCase(text) {
+  const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
+  return cleaned ? `${cleaned.charAt(0).toUpperCase()}${cleaned.slice(1)}` : '';
+}
+
+function generateResponse(prompt) {
+  const anchors = extractAnchors(prompt);
+  const anchor = pickRandom(anchors.length ? anchors : ['this moment']);
+  const mode = chooseMode(prompt);
+  const frames = mode === 'question' ? QUESTION_FRAMES : mode === 'reflective' ? REFLECTIVE_FRAMES : DREAM_FRAMES;
+  const [line, alternate] = chooseLines(mode);
+  const first = pickRandom(frames).replace('{anchor}', anchor).replace('{line}', line);
+  const second = Math.random() < 0.45
+    ? (Math.random() < 0.6 ? pickRandom(SECOND_LINES) : sentenceCase(alternate))
+    : '';
+  return [sentenceCase(first), second].filter(Boolean).join(' ');
 }
 
 function addLine(className, text) {
@@ -319,6 +295,10 @@ async function typeResponse(text) {
   scrollTranscriptToBottom();
 }
 
+function addReceiverStatus(text) {
+  return addLine('response-line', text);
+}
+
 function setReadySoon(delay = 800) {
   window.setTimeout(() => {
     if (!isGenerating) statusEl.textContent = 'READY';
@@ -330,12 +310,20 @@ function promptPath() {
 }
 
 function echoCommand(command) {
-  addLine('user-line', `${promptPath()}${command}`);
+  addLine('user-line', `${promptPath()}> ${command}`);
+}
+
+function getInputValue() {
+  return inputEl.value;
 }
 
 function setInputValue(value, caret = value.length) {
   inputEl.value = value;
-  try { inputEl.setSelectionRange(caret, caret); } catch { /* iOS/browser selection unavailable */ }
+  try {
+    inputEl.setSelectionRange(caret, caret);
+  } catch {
+    // Read-only touch mode does not need a visible browser selection.
+  }
 }
 
 function clearInput() {
@@ -356,15 +344,15 @@ async function fetchJson(url, signal) {
 }
 
 function weatherDetailsForCode(code) {
-  const value = Number(code);
-  if (value === 0) return { label: 'CLEAR SKY', icon: 'sun' };
-  if ([1, 2].includes(value)) return { label: 'PARTLY CLOUDY', icon: 'partly-cloudy' };
-  if (value === 3) return { label: 'OVERCAST', icon: 'cloud' };
-  if ([45, 48].includes(value)) return { label: 'FOG', icon: 'fog' };
-  if ([51, 53, 55, 56, 57].includes(value)) return { label: 'DRIZZLE', icon: 'drizzle' };
-  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(value)) return { label: 'RAIN', icon: 'rain' };
-  if ([71, 73, 75, 77, 85, 86].includes(value)) return { label: 'SNOW', icon: 'snow' };
-  if ([95, 96, 99].includes(value)) return { label: 'THUNDERSTORM', icon: 'storm' };
+  const numericCode = Number(code);
+  if (numericCode === 0) return { label: 'CLEAR SKY', icon: 'sun' };
+  if ([1, 2].includes(numericCode)) return { label: 'PARTLY CLOUDY', icon: 'partly-cloudy' };
+  if (numericCode === 3) return { label: 'OVERCAST', icon: 'cloud' };
+  if ([45, 48].includes(numericCode)) return { label: 'FOG', icon: 'fog' };
+  if ([51, 53, 55, 56, 57].includes(numericCode)) return { label: 'DRIZZLE', icon: 'drizzle' };
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(numericCode)) return { label: 'RAIN', icon: 'rain' };
+  if ([71, 73, 75, 77, 85, 86].includes(numericCode)) return { label: 'SNOW', icon: 'snow' };
+  if ([95, 96, 99].includes(numericCode)) return { label: 'THUNDERSTORM', icon: 'storm' };
   return { label: 'UNKNOWN SKY', icon: 'cloud' };
 }
 
@@ -382,26 +370,21 @@ function weatherIconMarkup(iconName) {
   return icons[iconName] || icons.cloud;
 }
 
-function loadWeatherCache(cityQuery) {
-  try {
-    const cached = JSON.parse(sessionStorage.getItem(WEATHER_CACHE_KEY) || 'null');
-    return cached?.cityQuery === cityQuery && Date.now() - cached.savedAt < CONFIG.WEATHER_CACHE_MS ? cached : null;
-  } catch { return null; }
-}
-
-function saveWeatherCache(cityQuery, location, weather) {
-  try { sessionStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify({ cityQuery, location, weather, savedAt: Date.now() })); } catch { /* optional */ }
-}
-
 function formatWeatherLocation(location) {
-  return [location.name, location.admin1, location.country].filter(Boolean).filter((value, index, array) => array.indexOf(value) === index).join(', ').toUpperCase();
+  return [location.name, location.admin1, location.country]
+    .filter(Boolean)
+    .filter((value, index, array) => array.indexOf(value) === index)
+    .join(', ')
+    .toUpperCase();
 }
 
 function formatWeatherTime(localTime) {
   if (!localTime) return 'TIME UNKNOWN';
   const date = new Date(`${localTime}:00`);
   if (Number.isNaN(date.getTime())) return localTime.replace('T', ' · ');
-  return new Intl.DateTimeFormat(undefined, { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(date).toUpperCase().replace(',', ' ·');
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(date).toUpperCase().replace(',', ' ·');
 }
 
 function windDirectionLabel(degrees) {
@@ -433,7 +416,12 @@ function renderWeatherCard(location, weather) {
   headline.textContent = `${roundWeatherValue(current.temperature_2m)}°C · ${details.label}`;
   const data = document.createElement('div');
   data.className = 'weather-data';
-  [`HUMIDITY ${roundWeatherValue(current.relative_humidity_2m)}%`, `WIND ${windDirectionLabel(current.wind_direction_10m)} · ${roundWeatherValue(current.wind_speed_10m)} KM/H`, `PRECIPITATION ${roundWeatherValue(current.precipitation, 1)} MM`, 'SOURCE: OPEN-METEO'].forEach(text => {
+  [
+    `HUMIDITY ${roundWeatherValue(current.relative_humidity_2m)}%`,
+    `WIND ${windDirectionLabel(current.wind_direction_10m)} · ${roundWeatherValue(current.wind_speed_10m)} KM/H`,
+    `PRECIPITATION ${roundWeatherValue(current.precipitation, 1)} MM`,
+    'SOURCE: OPEN-METEO',
+  ].forEach(text => {
     const item = document.createElement('span');
     item.textContent = text;
     data.appendChild(item);
@@ -447,6 +435,23 @@ function renderWeatherCard(location, weather) {
   scrollTranscriptToBottom();
 }
 
+function loadWeatherCache(cityQuery) {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(WEATHER_CACHE_KEY) || 'null');
+    return cached?.cityQuery === cityQuery && Date.now() - cached.savedAt < CONFIG.WEATHER_CACHE_MS ? cached : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveWeatherCache(cityQuery, location, weather) {
+  try {
+    sessionStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify({ cityQuery, location, weather, savedAt: Date.now() }));
+  } catch {
+    // Session storage is optional.
+  }
+}
+
 async function fetchWeatherForCity(cityQuery, signal) {
   const geocodeUrl = new URL('https://geocoding-api.open-meteo.com/v1/search');
   geocodeUrl.search = new URLSearchParams({ name: cityQuery, count: '1', language: 'en', format: 'json' });
@@ -454,27 +459,39 @@ async function fetchWeatherForCity(cityQuery, signal) {
   const location = geocode.results?.[0];
   if (!location) throw new Error('CITY_NOT_FOUND');
   const forecastUrl = new URL('https://api.open-meteo.com/v1/forecast');
-  forecastUrl.search = new URLSearchParams({ latitude: String(location.latitude), longitude: String(location.longitude), current: 'temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m', temperature_unit: 'celsius', wind_speed_unit: 'kmh', precipitation_unit: 'mm', timezone: 'auto' });
+  forecastUrl.search = new URLSearchParams({
+    latitude: String(location.latitude), longitude: String(location.longitude),
+    current: 'temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m',
+    temperature_unit: 'celsius', wind_speed_unit: 'kmh', precipitation_unit: 'mm', timezone: 'auto',
+  });
   const weather = await fetchJson(forecastUrl, signal);
   if (!weather.current) throw new Error('WEATHER_UNAVAILABLE');
   return { location, weather };
 }
 
 function weatherHelpText() {
-  return 'WEATHER RECEIVER // STANDBY\n\nCURRENT.EXE <CITY, REGION>\nEXAMPLE: CURRENT.EXE MONTREAL, QC';
+  return 'WEATHER RECEIVER // STANDBY\n\nCURRENT.EXE <CITY, REGION>\n\nEXAMPLE:\nCURRENT.EXE MONTREAL, QC\n\nMETRIC UNITS ENABLED.';
 }
 
 async function runWeatherCommand(cityQuery) {
   const normalizedCity = cityQuery.trim();
-  if (!normalizedCity) { addBlock('response-line', weatherHelpText()); return; }
+  if (!normalizedCity) {
+    addBlock('response-line', weatherHelpText());
+    return;
+  }
   const cacheKey = normalizedCity.toLowerCase();
   const cached = loadWeatherCache(cacheKey);
-  if (cached) { statusEl.textContent = 'WEATHER CACHED'; renderWeatherCard(cached.location, cached.weather); setReadySoon(); return; }
+  if (cached) {
+    statusEl.textContent = 'WEATHER CACHED';
+    renderWeatherCard(cached.location, cached.weather);
+    setReadySoon();
+    return;
+  }
   cancelActiveRequest();
   activeRequestController = new AbortController();
   const controller = activeRequestController;
   statusEl.textContent = 'LINKING...';
-  addLine('response-line', `WEATHER RECEIVER // LINKING TO ${normalizedCity.toUpperCase()}...`);
+  addReceiverStatus(`WEATHER RECEIVER // LINKING TO ${normalizedCity.toUpperCase()}...`);
   try {
     const { location, weather } = await fetchWeatherForCity(normalizedCity, controller.signal);
     saveWeatherCache(cacheKey, location, weather);
@@ -483,53 +500,77 @@ async function runWeatherCommand(cityQuery) {
   } catch (error) {
     if (error.name === 'AbortError') return;
     statusEl.textContent = 'SIGNAL LOST';
-    addBlock('response-line', error.message === 'CITY_NOT_FOUND' ? `CITY NOT FOUND: ${normalizedCity.toUpperCase()}\nTRY: CURRENT.EXE CITY, REGION` : 'WEATHER RECEIVER // SIGNAL LOST.\nCHECK CONNECTION AND TRY AGAIN.');
+    addBlock('response-line', error.message === 'CITY_NOT_FOUND'
+      ? `CITY NOT FOUND: ${normalizedCity.toUpperCase()}\nTRY: CURRENT.EXE CITY, REGION`
+      : 'WEATHER RECEIVER // SIGNAL LOST.\nCHECK CONNECTION AND TRY AGAIN.');
   } finally {
     if (activeRequestController === controller) activeRequestController = null;
     setReadySoon();
   }
 }
 
-function getNewsCacheKey(label, query) { return `${label.toLowerCase()}::${query.trim().toLowerCase()}`; }
+function getNewsCacheKey(label, query) {
+  return `${label.toLowerCase()}::${query.trim().toLowerCase()}`;
+}
 
 function loadNewsCache(label, query) {
   try {
     const cached = JSON.parse(sessionStorage.getItem(NEWS_CACHE_KEY) || 'null');
     return cached?.cacheKey === getNewsCacheKey(label, query) && Date.now() - cached.savedAt < CONFIG.NEWS_CACHE_MS ? cached.articles : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function saveNewsCache(label, query, articles) {
-  try { sessionStorage.setItem(NEWS_CACHE_KEY, JSON.stringify({ cacheKey: getNewsCacheKey(label, query), articles, savedAt: Date.now() })); } catch { /* optional */ }
+  try {
+    sessionStorage.setItem(NEWS_CACHE_KEY, JSON.stringify({ cacheKey: getNewsCacheKey(label, query), articles, savedAt: Date.now() }));
+  } catch {
+    // Session storage is optional.
+  }
 }
 
 function restoreLatestNewsResults() {
   try {
     const saved = JSON.parse(sessionStorage.getItem(NEWS_RESULTS_KEY) || '[]');
     latestNewsResults = Array.isArray(saved) ? saved : [];
-  } catch { latestNewsResults = []; }
+  } catch {
+    latestNewsResults = [];
+  }
 }
 
 function saveLatestNewsResults(articles) {
   latestNewsResults = articles;
-  try { sessionStorage.setItem(NEWS_RESULTS_KEY, JSON.stringify(articles)); } catch { /* optional */ }
+  try {
+    sessionStorage.setItem(NEWS_RESULTS_KEY, JSON.stringify(articles));
+  } catch {
+    // Stored in memory until reload.
+  }
 }
 
 function safeArticleUrl(value) {
   try {
     const url = new URL(value);
     return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
-  } catch { return ''; }
+  } catch {
+    return '';
+  }
 }
 
 function getArticleDomain(article) {
   if (article.domain) return String(article.domain).replace(/^www\./, '');
-  try { return new URL(article.url).hostname.replace(/^www\./, ''); } catch { return 'UNKNOWN SOURCE'; }
+  try {
+    return new URL(article.url).hostname.replace(/^www\./, '');
+  } catch {
+    return 'UNKNOWN SOURCE';
+  }
 }
 
 function parseGdeltDate(value) {
   const raw = String(value || '').trim();
-  if (/^\d{14}$/.test(raw)) return new Date(`${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}T${raw.slice(8, 10)}:${raw.slice(10, 12)}:${raw.slice(12, 14)}Z`);
+  if (/^\d{14}$/.test(raw)) {
+    return new Date(`${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}T${raw.slice(8, 10)}:${raw.slice(10, 12)}:${raw.slice(12, 14)}Z`);
+  }
   const parsed = new Date(raw);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
@@ -551,7 +592,12 @@ function normaliseNewsArticles(payload) {
   const usedUrls = new Set();
   return candidates.map(article => {
     const url = safeArticleUrl(article.url || article.link || '');
-    return { title: String(article.title || article.name || '').replace(/\s+/g, ' ').trim(), url, domain: getArticleDomain({ ...article, url }), seenDate: article.seendate || article.seenDate || article.date_published || '' };
+    return {
+      title: String(article.title || article.name || '').replace(/\s+/g, ' ').trim(),
+      url,
+      domain: getArticleDomain({ ...article, url }),
+      seenDate: article.seendate || article.seenDate || article.date_published || '',
+    };
   }).filter(article => article.title && article.url).filter(article => {
     if (usedUrls.has(article.url)) return false;
     usedUrls.add(article.url);
@@ -600,14 +646,23 @@ function renderNewsCard(label, articles) {
 async function runNewsCommand(label, query) {
   const cleanLabel = String(label || 'NEWS').toUpperCase();
   const cleanQuery = String(query || '').trim();
-  if (!cleanQuery) { addBlock('response-line', newsHelpText()); return; }
+  if (!cleanQuery) {
+    addBlock('response-line', newsHelpText());
+    return;
+  }
   const cached = loadNewsCache(cleanLabel, cleanQuery);
-  if (cached?.length) { statusEl.textContent = 'NEWS CACHED'; saveLatestNewsResults(cached); renderNewsCard(cleanLabel, cached); setReadySoon(); return; }
+  if (cached?.length) {
+    statusEl.textContent = 'NEWS CACHED';
+    saveLatestNewsResults(cached);
+    renderNewsCard(cleanLabel, cached);
+    setReadySoon();
+    return;
+  }
   cancelActiveRequest();
   activeRequestController = new AbortController();
   const controller = activeRequestController;
   statusEl.textContent = 'TUNING...';
-  addLine('response-line', `NEWS RECEIVER // TUNING: ${cleanLabel}...`);
+  addReceiverStatus(`NEWS RECEIVER // TUNING: ${cleanLabel}...`);
   try {
     const articles = await fetchNews(cleanQuery, controller.signal);
     saveNewsCache(cleanLabel, cleanQuery, articles);
@@ -617,7 +672,9 @@ async function runNewsCommand(label, query) {
   } catch (error) {
     if (error.name === 'AbortError') return;
     statusEl.textContent = 'SIGNAL LOST';
-    addBlock('response-line', error.message === 'NO_NEWS_RESULTS' ? `NEWS RECEIVER // NO CLEAR SIGNALS FOR ${cleanLabel}.\nTRY: TOPIC.EXE <WORDS>` : 'NEWS RECEIVER // SIGNAL BLOCKED OR LOST.\nTRY AGAIN LATER.');
+    addBlock('response-line', error.message === 'NO_NEWS_RESULTS'
+      ? `NEWS RECEIVER // NO CLEAR SIGNALS FOR ${cleanLabel}.\nTRY: TOPIC.EXE <WORDS>`
+      : 'NEWS RECEIVER // SIGNAL BLOCKED OR LOST.\nTRY AGAIN LATER.');
   } finally {
     if (activeRequestController === controller) activeRequestController = null;
     setReadySoon();
@@ -625,14 +682,14 @@ async function runNewsCommand(label, query) {
 }
 
 function openNewsItem(itemNumber) {
-  const article = latestNewsResults[Number(itemNumber) - 1];
-  if (!article?.url) { addBlock('response-line', 'NO STORED ITEM AT THAT NUMBER.\nRUN A NEWS CHANNEL FIRST.'); return; }
+  const index = Number(itemNumber) - 1;
+  const article = latestNewsResults[index];
+  if (!Number.isInteger(index) || !article?.url) {
+    addBlock('response-line', 'NO STORED ITEM AT THAT NUMBER.\nRUN HEADLINES.EXE OR A NEWS CHANNEL FIRST.');
+    return;
+  }
   const tab = window.open(article.url, '_blank', 'noopener,noreferrer');
-  if (!tab) addBlock('response-line', `SOURCE READY: ${article.domain.toUpperCase()}\nTAP THE HEADLINE IN THE LIST.`);
-}
-
-function weatherHelpText() {
-  return 'WEATHER RECEIVER // STANDBY\n\nCURRENT.EXE <CITY, REGION>\nEXAMPLE: CURRENT.EXE MONTREAL, QC';
+  if (!tab) addBlock('response-line', `SOURCE READY: ${article.domain.toUpperCase()}\nYOUR BROWSER BLOCKED THE TAB. TAP THE HEADLINE IN THE LIST.`);
 }
 
 function newsHelpText() {
@@ -640,47 +697,108 @@ function newsHelpText() {
 }
 
 function helpText() {
-  return ['JESSEOS B: COMMAND INDEX', '', 'DIR                       LIST CURRENT DIRECTORY', 'CD <DIRECTORY>            ENTER A DIRECTORY', 'CD ..                     RETURN ONE DIRECTORY', 'CD \\                      RETURN TO B:\\ ROOT', 'TYPE <FILE>               READ A TEXT FILE', 'CLS.EXE                   CLEAR SCREEN', 'STATUS.EXE                SYSTEM STATUS', 'F3                        RECALL LAST COMMAND', '', 'B:\\WEATHER\\', 'CURRENT.EXE <CITY>        WEATHER RECEIVER', '', 'B:\\NEWS\\', 'HEADLINES.EXE             WORLD NEWS', 'CANADA.EXE / SCIENCE.EXE / TECH.EXE', 'TOPIC.EXE <WORDS>         CUSTOM NEWS SIGNAL', 'OPEN.EXE <NUMBER>         OPEN STORED SOURCE', '', 'COMPATIBILITY: /HELP, /CITY, /HEADLINES, /NEWS, /TOPIC, /OPEN'].join('\n');
+  return [
+    'JESSEOS B: COMMAND INDEX',
+    '',
+    'DIR                       LIST CURRENT DIRECTORY',
+    'CD <DIRECTORY>            ENTER A DIRECTORY',
+    'CD ..                     RETURN ONE DIRECTORY',
+    'CD \\                      RETURN TO B:\\ ROOT',
+    'TYPE <FILE>               READ A TEXT FILE',
+    'CLS.EXE                   CLEAR SCREEN',
+    'STATUS.EXE                SYSTEM STATUS',
+    '',
+    'B:\\WEATHER\\',
+    'CURRENT.EXE <CITY>        WEATHER RECEIVER',
+    '',
+    'B:\\NEWS\\',
+    'HEADLINES.EXE             WORLD NEWS',
+    'CANADA.EXE / SCIENCE.EXE / TECH.EXE',
+    'TOPIC.EXE <WORDS>         CUSTOM NEWS SIGNAL',
+    'OPEN.EXE <NUMBER>         OPEN STORED SOURCE',
+    '',
+    'COMPATIBILITY: /HELP, /CITY, /HEADLINES, /NEWS, /TOPIC, /OPEN',
+  ].join('\n');
 }
 
 function statusText() {
-  return ['JESSEOS SYSTEM STATUS', '=====================', 'MACHINE: LBSTRCOMP TERMINAL', 'SYSTEM: ONLINE', `DIRECTORY: ${promptPath()}`, 'MEMORY: LOCAL LANGUAGE BANKS LOADED', 'WEATHER: ON-DEMAND RECEIVER READY', 'NEWS: ON-DEMAND RECEIVER READY', 'DISPLAY: CRT PHOSPHOR GREEN'].join('\n');
+  return [
+    'JESSEOS SYSTEM STATUS',
+    '=====================',
+    'MACHINE: LBSTRCOMP TERMINAL',
+    'SYSTEM: ONLINE',
+    `DIRECTORY: ${promptPath()}`,
+    'MEMORY: LOCAL LANGUAGE BANKS LOADED',
+    'WEATHER: ON-DEMAND RECEIVER READY',
+    'NEWS: ON-DEMAND RECEIVER READY',
+    'DISPLAY: CRT PHOSPHOR GREEN',
+  ].join('\n');
 }
 
 function aboutText() {
-  return ['JESSEOS v0.8', 'LBSTRCOMP LOCAL DREAM TERMINAL', '', 'A local language-bank system with optional on-demand', 'weather and news receivers. No geolocation, tracking,', 'background polling, or API keys are required.'].join('\n');
+  return [
+    'JESSEOS v0.8',
+    'LBSTRCOMP LOCAL DREAM TERMINAL',
+    '',
+    'A local language-bank system with optional on-demand',
+    'weather and news receivers. No geolocation, tracking,',
+    'background polling, or API keys are required.',
+  ].join('\n');
 }
 
 function fileText(fileName) {
   const name = fileName.toUpperCase();
-  if (name === 'ABOUT.TXT') return aboutText();
-  if (name === 'HELP.TXT') return currentDirectory === 'WEATHER' ? weatherHelpText() : currentDirectory === 'NEWS' ? newsHelpText() : 'THIS DIRECTORY HAS NO ADDITIONAL HELP FILE.';
-  if (name === 'README.TXT') return currentDirectory === 'BOARD' ? 'BOARD // LOCAL MESSAGE ARCHIVE\n\nTHE BOARD IS QUIET FOR NOW.\nRUN LISTEN.EXE TO OPEN THE DREAM CHANNEL.' : 'PROGRAM DIRECTORY\n\nPLANETRUNNER.EXE\nORBITAL NAVIGATION MODULE NOT YET INSTALLED.';
-  return null;
+  const files = {
+    'ABOUT.TXT': aboutText(),
+    'HELP.TXT': currentDirectory === 'WEATHER' ? weatherHelpText()
+      : currentDirectory === 'NEWS' ? newsHelpText()
+      : 'THIS DIRECTORY HAS NO ADDITIONAL HELP FILE.',
+    'README.TXT': currentDirectory === 'BOARD'
+      ? 'BOARD // LOCAL MESSAGE ARCHIVE\n\nTHE BOARD IS QUIET FOR NOW.\nRUN LISTEN.EXE TO OPEN THE DREAM CHANNEL.'
+      : 'PROGRAM DIRECTORY\n\nPLANETRUNNER.EXE\nORBITAL NAVIGATION MODULE NOT YET INSTALLED.',
+  };
+  return files[name] || null;
 }
 
 function listDirectory() {
   const directory = DIRECTORIES[currentDirectory];
-  addBlock('response-line', [`DIRECTORY OF ${directory.path}`, '', ...directory.entries.map(([name, type, description]) => ` ${name.padEnd(17)} ${type.padEnd(6)} ${description}`)].join('\n'));
+  addLine('response-line', `DIRECTORY OF ${directory.path}`);
+  addLine('response-line', '');
+  directory.entries.forEach(([name, type, description]) => {
+    addLine('response-line', ` ${name.padEnd(17)} ${type.padEnd(6)} ${description}`);
+  });
 }
 
 function changeDirectory(argument) {
   const target = String(argument || '').trim().toUpperCase().replace(/\//g, '\\');
-  if (!target) { addLine('response-line', promptPath()); return; }
+  if (!target) {
+    addLine('response-line', promptPath());
+    return;
+  }
   if (target === '\\' || target === 'B:\\' || target === 'B:') {
-    if (currentDirectory === 'ROOT') addLine('response-line', 'ALREADY AT B:\\ ROOT.');
-    else { currentDirectory = 'ROOT'; addLine('response-line', 'DIRECTORY CHANGED TO B:\\'); }
+    currentDirectory = 'ROOT';
+    updatePrompt();
+    addLine('response-line', 'DIRECTORY CHANGED TO B:\\');
     return;
   }
   if (target === '..') {
     if (currentDirectory === 'ROOT') addLine('response-line', 'ALREADY AT B:\\ ROOT.');
-    else { currentDirectory = 'ROOT'; addLine('response-line', 'DIRECTORY CHANGED TO B:\\'); }
+    else {
+      currentDirectory = 'ROOT';
+      updatePrompt();
+      addLine('response-line', 'DIRECTORY CHANGED TO B:\\');
+    }
     return;
   }
   const normalized = target.replace(/^B:\\/, '').replace(/\\/g, '');
-  if (Object.prototype.hasOwnProperty.call(DIRECTORIES, normalized)) {
-    if (currentDirectory === normalized) addLine('response-line', `DIRECTORY ALREADY ACTIVE: ${normalized}`);
-    else { currentDirectory = normalized; addLine('response-line', `DIRECTORY CHANGED TO ${promptPath()}`); }
+  if (['WEATHER', 'NEWS', 'BOARD', 'GAMES'].includes(normalized)) {
+    if (currentDirectory === normalized) {
+      addLine('response-line', `DIRECTORY ALREADY ACTIVE: ${normalized}`);
+    } else {
+      currentDirectory = normalized;
+      updatePrompt();
+      addLine('response-line', `DIRECTORY CHANGED TO ${promptPath()}`);
+    }
     return;
   }
   addLine('response-line', `DIRECTORY NOT FOUND: ${argument}`);
@@ -688,38 +806,95 @@ function changeDirectory(argument) {
 
 async function runExecutable(executable, args) {
   const exe = executable.toUpperCase();
-  if (exe === 'STATUS.EXE' || exe === 'STATUS') { addBlock('response-line', statusText()); return; }
-  if (exe === 'CLS.EXE' || exe === 'CLS') { transcriptEl.innerHTML = ''; return; }
-  if (exe === 'HELP.EXE' || exe === 'HELP') { addBlock('response-line', helpText()); return; }
-  if (currentDirectory === 'WEATHER' && (exe === 'CURRENT.EXE' || exe === 'CURRENT')) { await runWeatherCommand(args.join(' ')); return; }
+  if (exe === 'STATUS.EXE' || exe === 'STATUS') {
+    addBlock('response-line', statusText());
+    return;
+  }
+  if (exe === 'CLS.EXE' || exe === 'CLS') {
+    transcriptEl.innerHTML = '';
+    return;
+  }
+  if (exe === 'HELP.EXE' || exe === 'HELP') {
+    addBlock('response-line', helpText());
+    return;
+  }
+  if (currentDirectory === 'WEATHER' && (exe === 'CURRENT.EXE' || exe === 'CURRENT')) {
+    await runWeatherCommand(args.join(' '));
+    return;
+  }
   if (currentDirectory === 'NEWS') {
-    if (exe === 'HEADLINES.EXE' || exe === 'HEADLINES') { await runNewsCommand(NEWS_CHANNELS.headlines.label, NEWS_CHANNELS.headlines.query); return; }
-    if (exe === 'CANADA.EXE' || exe === 'CANADA') { await runNewsCommand(NEWS_CHANNELS.canada.label, NEWS_CHANNELS.canada.query); return; }
-    if (exe === 'SCIENCE.EXE' || exe === 'SCIENCE') { await runNewsCommand(NEWS_CHANNELS.science.label, NEWS_CHANNELS.science.query); return; }
-    if (exe === 'TECH.EXE' || exe === 'TECH') { await runNewsCommand(NEWS_CHANNELS.tech.label, NEWS_CHANNELS.tech.query); return; }
+    if (exe === 'HEADLINES.EXE' || exe === 'HEADLINES') {
+      await runNewsCommand(NEWS_CHANNELS.headlines.label, NEWS_CHANNELS.headlines.query);
+      return;
+    }
+    if (exe === 'CANADA.EXE' || exe === 'CANADA') {
+      await runNewsCommand(NEWS_CHANNELS.canada.label, NEWS_CHANNELS.canada.query);
+      return;
+    }
+    if (exe === 'SCIENCE.EXE' || exe === 'SCIENCE') {
+      await runNewsCommand(NEWS_CHANNELS.science.label, NEWS_CHANNELS.science.query);
+      return;
+    }
+    if (exe === 'TECH.EXE' || exe === 'TECH') {
+      await runNewsCommand(NEWS_CHANNELS.tech.label, NEWS_CHANNELS.tech.query);
+      return;
+    }
     if (exe === 'TOPIC.EXE' || exe === 'TOPIC') {
       const topic = args.join(' ').trim();
       if (!topic) addBlock('response-line', 'TOPIC.EXE REQUIRES SEARCH WORDS.\nEXAMPLE: TOPIC.EXE NORTHERN LIGHTS');
       else await runNewsCommand(`TOPIC: ${topic.toUpperCase()}`, `${topic} sourcelang:English`);
       return;
     }
-    if (exe === 'OPEN.EXE' || exe === 'OPEN') { openNewsItem(args[0]); return; }
+    if (exe === 'OPEN.EXE' || exe === 'OPEN') {
+      openNewsItem(args[0]);
+      return;
+    }
   }
-  if (currentDirectory === 'BOARD' && (exe === 'LISTEN.EXE' || exe === 'LISTEN')) { await typeResponse(generateResponse('open the local board')); return; }
-  if (currentDirectory === 'GAMES' && (exe === 'PLANETRUNNER.EXE' || exe === 'PLANETRUNNER')) { addBlock('response-line', 'PLANETRUNNER // PROGRAM SLOT RESERVED\nORBITAL NAVIGATION MODULE NOT YET INSTALLED.\nTHE MACHINE HOLDS THE PLACE OPEN.'); return; }
+  if (currentDirectory === 'BOARD' && (exe === 'LISTEN.EXE' || exe === 'LISTEN')) {
+    await typeResponse(generateResponse('open the local board'));
+    return;
+  }
+  if (currentDirectory === 'GAMES' && (exe === 'PLANETRUNNER.EXE' || exe === 'PLANETRUNNER')) {
+    addBlock('response-line', 'PLANETRUNNER // PROGRAM SLOT RESERVED\nORBITAL NAVIGATION MODULE NOT YET INSTALLED.\nTHE MACHINE HOLDS THE PLACE OPEN.');
+    return;
+  }
   addLine('response-line', `'${executable}' IS NOT RECOGNIZED IN ${promptPath()}`);
 }
 
 async function handleCompatibilityCommand(command) {
   const lower = command.toLowerCase();
-  if (lower === '/help') { addBlock('response-line', helpText()); return true; }
-  if (lower === '/about') { addBlock('response-line', aboutText()); return true; }
-  if (lower === '/status') { addBlock('response-line', statusText()); return true; }
-  if (lower === '/clear') { transcriptEl.innerHTML = ''; return true; }
-  if (lower === '/weather') { addBlock('response-line', weatherHelpText()); return true; }
-  if (lower.startsWith('/city ')) { await runWeatherCommand(command.slice(6)); return true; }
-  if (lower === '/news') { addBlock('response-line', newsHelpText()); return true; }
-  if (lower === '/headlines') { await runNewsCommand(NEWS_CHANNELS.headlines.label, NEWS_CHANNELS.headlines.query); return true; }
+  if (lower === '/help') {
+    addBlock('response-line', helpText());
+    return true;
+  }
+  if (lower === '/about') {
+    addBlock('response-line', aboutText());
+    return true;
+  }
+  if (lower === '/status') {
+    addBlock('response-line', statusText());
+    return true;
+  }
+  if (lower === '/clear') {
+    transcriptEl.innerHTML = '';
+    return true;
+  }
+  if (lower === '/weather') {
+    addBlock('response-line', weatherHelpText());
+    return true;
+  }
+  if (lower.startsWith('/city ')) {
+    await runWeatherCommand(command.slice(6));
+    return true;
+  }
+  if (lower === '/news') {
+    addBlock('response-line', newsHelpText());
+    return true;
+  }
+  if (lower === '/headlines') {
+    await runNewsCommand(NEWS_CHANNELS.headlines.label, NEWS_CHANNELS.headlines.query);
+    return true;
+  }
   if (lower.startsWith('/news ')) {
     const channel = lower.slice(6).trim();
     if (NEWS_CHANNELS[channel]) await runNewsCommand(NEWS_CHANNELS[channel].label, NEWS_CHANNELS[channel].query);
@@ -732,7 +907,10 @@ async function handleCompatibilityCommand(command) {
     else addBlock('response-line', newsHelpText());
     return true;
   }
-  if (/^\/open\s+\d+$/.test(lower)) { openNewsItem(lower.replace(/^\/open\s+/, '')); return true; }
+  if (/^\/open\s+\d+$/.test(lower)) {
+    openNewsItem(lower.replace(/^\/open\s+/, ''));
+    return true;
+  }
   return false;
 }
 
@@ -742,31 +920,41 @@ async function processShellCommand(command) {
   if (await handleCompatibilityCommand(trimmed)) return;
   const [rawCommand, ...args] = trimmed.split(/\s+/);
   const operation = rawCommand.toUpperCase();
-  if (operation === 'DIR') { listDirectory(); return; }
-  if (operation === 'CD' || operation === 'CHDIR') { changeDirectory(args.join(' ')); return; }
+  if (operation === 'DIR') {
+    listDirectory();
+    return;
+  }
+  if (operation === 'CD' || operation === 'CHDIR') {
+    changeDirectory(args.join(' '));
+    return;
+  }
   if (operation === 'TYPE') {
     const text = fileText(args.join(' '));
     if (text) addBlock('response-line', text);
     else addLine('response-line', `FILE NOT FOUND: ${args.join(' ') || '(NONE)'}`);
     return;
   }
-  if (operation === 'EXIT') { addLine('response-line', 'THE GREEN ROOM STAYS ON.'); return; }
-  if (operation === 'F3') { recallLastCommand(); return; }
-  if (operation.endsWith('.EXE') || ['STATUS', 'CLS', 'HELP', 'CURRENT', 'HEADLINES', 'CANADA', 'SCIENCE', 'TECH', 'TOPIC', 'OPEN', 'LISTEN', 'PLANETRUNNER'].includes(operation)) { await runExecutable(operation, args); return; }
+  if (operation === 'EXIT') {
+    addLine('response-line', 'THE GREEN ROOM STAYS ON.');
+    return;
+  }
+  if (operation.endsWith('.EXE') || ['STATUS', 'CLS', 'HELP', 'CURRENT', 'HEADLINES', 'CANADA', 'SCIENCE', 'TECH', 'TOPIC', 'OPEN', 'LISTEN', 'PLANETRUNNER'].includes(operation)) {
+    await runExecutable(operation, args);
+    return;
+  }
   await typeResponse(generateResponse(trimmed));
 }
 
 async function submitCurrentCommand(event) {
   if (event) event.preventDefault();
-  const command = inputEl.value.trim();
+  const command = getInputValue().trim();
   if (!command || isGenerating) return;
   isGenerating = true;
   inputEl.disabled = true;
   statusEl.textContent = 'PROCESSING...';
-  lastCommand = command;
+  echoCommand(command);
   commandHistory.push(command);
   historyIndex = commandHistory.length;
-  echoCommand(command);
   clearInput();
   try {
     await processShellCommand(command);
@@ -778,28 +966,9 @@ async function submitCurrentCommand(event) {
   } finally {
     isGenerating = false;
     inputEl.disabled = false;
+    if (!hardwareKeyboardMode) inputEl.setAttribute('readonly', 'readonly');
     if (statusEl.textContent !== 'READY') setReadySoon();
   }
-}
-
-function recallLastCommand() {
-  if (!lastCommand || isGenerating) return;
-  setInputValue(lastCommand, lastCommand.length);
-}
-
-function insertAtCaret(text) {
-  const value = inputEl.value;
-  const start = inputEl.selectionStart ?? value.length;
-  const end = inputEl.selectionEnd ?? value.length;
-  setInputValue(`${value.slice(0, start)}${text}${value.slice(end)}`, start + text.length);
-}
-
-function deleteAtCaret() {
-  const value = inputEl.value;
-  const start = inputEl.selectionStart ?? value.length;
-  const end = inputEl.selectionEnd ?? value.length;
-  if (start !== end) setInputValue(`${value.slice(0, start)}${value.slice(end)}`, start);
-  else if (start > 0) setInputValue(`${value.slice(0, start - 1)}${value.slice(end)}`, start - 1);
 }
 
 function updateShiftKeys() {
@@ -809,28 +978,72 @@ function updateShiftKeys() {
   });
 }
 
+function insertAtCaret(text) {
+  const value = inputEl.value;
+  const start = inputEl.selectionStart ?? value.length;
+  const end = inputEl.selectionEnd ?? value.length;
+  const next = `${value.slice(0, start)}${text}${value.slice(end)}`;
+  setInputValue(next, start + text.length);
+}
+
+function deleteAtCaret() {
+  const value = inputEl.value;
+  const start = inputEl.selectionStart ?? value.length;
+  const end = inputEl.selectionEnd ?? value.length;
+  if (start !== end) {
+    setInputValue(`${value.slice(0, start)}${value.slice(end)}`, start);
+  } else if (start > 0) {
+    setInputValue(`${value.slice(0, start - 1)}${value.slice(end)}`, start - 1);
+  }
+}
+
 function handleTouchKey(key) {
   if (isGenerating || inputEl.disabled) return;
-  if (key === 'enter') { submitCurrentCommand(); return; }
-  if (key === 'backspace') { deleteAtCaret(); return; }
-  if (key === 'shift') { shiftEnabled = !shiftEnabled; updateShiftKeys(); return; }
-  if (key === 'space') { insertAtCaret(' '); return; }
-  if (key === 'tab') { insertAtCaret('  '); return; }
-  if (key === 'escape') { clearInput(); shiftEnabled = false; updateShiftKeys(); return; }
-  if (key === 'f3') { recallLastCommand(); return; }
-  if (['control', 'run', 'stop', 'f1', 'f5'].includes(key)) return;
+  if (key === 'enter') {
+    submitCurrentCommand();
+    return;
+  }
+  if (key === 'backspace') {
+    deleteAtCaret();
+    return;
+  }
+  if (key === 'shift') {
+    shiftEnabled = !shiftEnabled;
+    updateShiftKeys();
+    return;
+  }
+  if (key === 'space') {
+    insertAtCaret(' ');
+    return;
+  }
+  if (key === 'tab') {
+    insertAtCaret('  ');
+    return;
+  }
+  if (key === 'escape') {
+    clearInput();
+    shiftEnabled = false;
+    updateShiftKeys();
+    return;
+  }
+  if (['control', 'run', 'stop', 'f1', 'f3', 'f5'].includes(key)) return;
   const character = shiftEnabled && /^[a-z]$/.test(key) ? key.toUpperCase() : key;
   insertAtCaret(character);
-  if (shiftEnabled) { shiftEnabled = false; updateShiftKeys(); }
+  if (shiftEnabled) {
+    shiftEnabled = false;
+    updateShiftKeys();
+  }
 }
 
 function virtualKeySelector(key) {
   const aliases = {
-    Enter: '[data-key="enter"]', Backspace: '[data-key="backspace"]', Escape: '[data-key="escape"]', Shift: '[data-key="shift"]', Control: '[data-key="control"]', ' ': '[data-key="space"]', Tab: '[data-key="tab"]', F3: '[data-key="f3"]',
+    Enter: '[data-key="enter"]', Backspace: '[data-key="backspace"]', Escape: '[data-key="escape"]',
+    Shift: '[data-key="shift"]', Control: '[data-key="control"]', ' ': '[data-key="space"]', Tab: '[data-key="tab"]',
+    '-': '[data-key="-"]', '=': '[data-key="+"]', ';': '[data-key=":"]',
   };
   if (aliases[key]) return aliases[key];
   if (/^[a-zA-Z]$/.test(key)) return `[data-key="${key.toLowerCase()}"]`;
-  if (/^[0-9]$/.test(key) || ['/', '+', ':', ',', '.', "'", '[', ']', '-'].includes(key)) return `[data-key="${key}"]`;
+  if (/^[0-9]$/.test(key) || ['/', '+', ':', ',', '.', "'", '[', ']'].includes(key)) return `[data-key="${key}"]`;
   return '';
 }
 
@@ -838,6 +1051,13 @@ function setVirtualKeyPressed(key, pressed) {
   const selector = virtualKeySelector(key);
   if (!selector) return;
   document.querySelectorAll(selector).forEach(button => button.classList.toggle('is-pressed', pressed));
+}
+
+function activateHardwareKeyboard() {
+  if (hardwareKeyboardMode) return;
+  hardwareKeyboardMode = true;
+  inputEl.removeAttribute('readonly');
+  inputEl.setAttribute('inputmode', 'text');
 }
 
 function initTouchKeyboard() {
@@ -860,12 +1080,9 @@ function initTouchKeyboard() {
 
 function initPhysicalKeyboard() {
   window.addEventListener('keydown', event => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    activateHardwareKeyboard();
     setVirtualKeyPressed(event.key, true);
-    if (event.key === 'F3') {
-      event.preventDefault();
-      recallLastCommand();
-      return;
-    }
     if (event.key === 'Enter') {
       event.preventDefault();
       submitCurrentCommand();
@@ -891,7 +1108,26 @@ function initPhysicalKeyboard() {
     }
   });
   window.addEventListener('keyup', event => setVirtualKeyPressed(event.key, false));
-  window.addEventListener('blur', () => document.querySelectorAll('.keyboard .is-pressed').forEach(button => button.classList.remove('is-pressed')));
+  window.addEventListener('blur', () => {
+    document.querySelectorAll('.keyboard .is-pressed').forEach(button => button.classList.remove('is-pressed'));
+  });
+}
+
+function updatePrompt() {
+  const promptEl = document.getElementById('prompt');
+  if (!promptEl) return;
+
+  // Build prompt from currentDirectory
+  const dirInfo = DIRECTORIES[currentDirectory];
+  if (!dirInfo) {
+    promptEl.textContent = 'B:\\>';
+    return;
+  }
+
+  // dirInfo.path is like 'B:\\' or 'B:\\WEATHER\\'
+  // We want to display as 'B:\>' or 'B:\WEATHER>'
+  let path = dirInfo.path.replace(/\\$/g, ''); // remove trailing backslashes
+  promptEl.textContent = path + '>';
 }
 
 function init() {
@@ -903,18 +1139,24 @@ function init() {
     console.error('JesseOS markup mismatch.');
     return;
   }
+  inputEl.setAttribute('readonly', 'readonly');
+  inputEl.setAttribute('inputmode', 'none');
   form.addEventListener('submit', submitCurrentCommand);
-  inputEl.addEventListener('keydown', event => {
-    if (event.key === 'Enter') submitCurrentCommand(event);
+  inputEl.addEventListener('focus', () => {
+    if (!hardwareKeyboardMode) inputEl.blur();
   });
   restoreLatestNewsResults();
   initTouchKeyboard();
   initPhysicalKeyboard();
   updateShiftKeys();
+  updatePrompt();
   statusEl.textContent = 'READY';
   addLine('system-line', 'JESSEOS v0.8 // LBSTRCOMP TERMINAL ONLINE');
   addLine('system-line', 'B: DRIVE MOUNTED. TYPE HELP.EXE OR DIR.');
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-else init();
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
