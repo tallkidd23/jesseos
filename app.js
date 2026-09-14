@@ -346,9 +346,24 @@ function cancelActiveRequest() {
 }
 
 async function fetchJson(url, signal) {
-  const response = await fetch(url, { signal, headers: { Accept: 'application/json' } });
-  if (!response.ok) throw new Error(`Receiver returned ${response.status}.`);
-  return response.json();
+  const response = await fetch(url, {
+    signal,
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+
+  const raw = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`HTTP_${response.status}: ${raw.slice(0, 160)}`);
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error(`INVALID_JSON: ${raw.slice(0, 160)}`);
+  }
 }
 
 function weatherDetailsForCode(code) {
@@ -615,10 +630,41 @@ function normaliseNewsArticles(payload) {
 
 async function fetchNews(query, signal) {
   const endpoint = new URL('https://api.gdeltproject.org/api/v2/doc/doc');
-  endpoint.search = new URLSearchParams({ query, mode: 'artlist', format: 'json', maxrecords: String(CONFIG.NEWS_MAX_ITEMS), timespan: '24h', sort: 'datedesc' });
-  const articles = normaliseNewsArticles(await fetchJson(endpoint, signal));
-  if (!articles.length) throw new Error('NO_NEWS_RESULTS');
-  return articles;
+  endpoint.search = new URLSearchParams({
+    query,
+    mode: 'artlist',
+    format: 'json',
+    maxrecords: String(CONFIG.NEWS_MAX_ITEMS),
+    timespan: '24h',
+    sort: 'datedesc',
+  });
+
+  let lastError;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const payload = await fetchJson(endpoint, signal);
+      const articles = normaliseNewsArticles(payload);
+
+      if (!articles.length) {
+        throw new Error('NO_NEWS_RESULTS');
+      }
+
+      return articles;
+    } catch (error) {
+      lastError = error;
+
+      if (error.name === 'AbortError' || error.message === 'NO_NEWS_RESULTS') {
+        throw error;
+      }
+
+      if (attempt === 0) {
+        await wait(900);
+      }
+    }
+  }
+
+  throw lastError;
 }
 
 function renderNewsCard(label, articles) {
@@ -680,9 +726,11 @@ async function runNewsCommand(label, query) {
   } catch (error) {
     if (error.name === 'AbortError') return;
     statusEl.textContent = 'SIGNAL LOST';
-    addBlock('response-line', error.message === 'NO_NEWS_RESULTS'
+    const newsErrorText = error.message === 'NO_NEWS_RESULTS'
       ? `NEWS RECEIVER // NO CLEAR SIGNALS FOR ${cleanLabel}.\nTRY: TOPIC.EXE <WORDS>`
-      : 'NEWS RECEIVER // SIGNAL BLOCKED OR LOST.\nTRY AGAIN LATER.');
+      : `NEWS RECEIVER // SIGNAL BLOCKED OR LOST.\n${error.message}\nTRY AGAIN LATER.`;
+
+    addBlock('response-line', newsErrorText);
   } finally {
     if (activeRequestController === controller) activeRequestController = null;
     setReadySoon();
