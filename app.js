@@ -630,6 +630,7 @@ function normaliseNewsArticles(payload) {
 
 async function fetchNews(query, signal) {
   const endpoint = new URL('https://api.gdeltproject.org/api/v2/doc/doc');
+
   endpoint.search = new URLSearchParams({
     query,
     mode: 'artlist',
@@ -639,33 +640,28 @@ async function fetchNews(query, signal) {
     sort: 'datedesc',
   });
 
-  let lastError;
+  try {
+    const payload = await fetchJson(endpoint, signal);
+    const articles = normaliseNewsArticles(payload);
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const payload = await fetchJson(endpoint, signal);
-      const articles = normaliseNewsArticles(payload);
-
-      if (!articles.length) {
-        throw new Error('NO_NEWS_RESULTS');
-      }
-
-      return articles;
-    } catch (error) {
-      lastError = error;
-
-      if (error.name === 'AbortError' || error.message === 'NO_NEWS_RESULTS') {
-        throw error;
-      }
-
-      if (attempt === 0) {
-        await wait(900);
-      }
+    if (!articles.length) {
+      throw new Error('NO_NEWS_RESULTS');
     }
-  }
 
-  throw lastError;
+    return articles;
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw error;
+    }
+
+    if (/429|one every 5 seconds|rate/i.test(error.message)) {
+      throw new Error('RATE_LIMITED: WAIT 5 SECONDS BEFORE TRYING NEWS AGAIN.');
+    }
+
+    throw error;
+  }
 }
+
 
 function renderNewsCard(label, articles) {
   const card = document.createElement('section');
@@ -727,10 +723,13 @@ async function runNewsCommand(label, query) {
     if (error.name === 'AbortError') return;
     statusEl.textContent = 'SIGNAL LOST';
     const newsErrorText = error.message === 'NO_NEWS_RESULTS'
-      ? `NEWS RECEIVER // NO CLEAR SIGNALS FOR ${cleanLabel}.\nTRY: TOPIC.EXE <WORDS>`
-      : `NEWS RECEIVER // SIGNAL BLOCKED OR LOST.\n${error.message}\nTRY AGAIN LATER.`;
+  ? `NEWS RECEIVER // NO CLEAR SIGNALS FOR ${cleanLabel}.
+TRY: TOPIC.EXE <WORDS>`
+  : `NEWS RECEIVER // ${error.message}
+TRY AGAIN AFTER A SHORT PAUSE.`;
 
-    addBlock('response-line', newsErrorText);
+addBlock('response-line', newsErrorText);
+
   } finally {
     if (activeRequestController === controller) activeRequestController = null;
     setReadySoon();
