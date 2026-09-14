@@ -910,9 +910,13 @@ async function runExecutable(executable, args) {
     return;
   }
   if (currentDirectory === 'GAMES' && (exe === 'PLANETRUNNER.EXE' || exe === 'PLANETRUNNER')) {
-    addBlock('response-line', 'PLANETRUNNER // PROGRAM SLOT RESERVED\nORBITAL NAVIGATION MODULE NOT YET INSTALLED.\nTHE MACHINE HOLDS THE PLACE OPEN.');
-    return;
-  }
+  addBlock('response-line', 'PLANETRUNNER // ORBITAL NAVIGATION ONLINE\nLOADING TERRAIN GENERATOR...');
+  window.setTimeout(() => {
+    window.location.href = './planetrunner.html';
+  }, 650);
+  return;
+}
+
   addLine('response-line', `'${executable}' IS NOT RECOGNIZED IN ${promptPath()}`);
 }
 
