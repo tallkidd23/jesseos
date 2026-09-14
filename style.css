@@ -774,4 +774,123 @@ input {
   .terminal-shell::after {
     animation: none;
   }
+  /* Main game display */
+#lbstrbox,
+.lbstrbox {
+  position: relative;
+  width: 100%;
+  height: 420px;
+  min-height: 420px;
+  max-height: 420px;
+  overflow: hidden;
+
+  box-sizing: border-box;
+  background: #000;
+  color: #00ff22;
+
+  font-family: "Courier New", Courier, monospace;
+  font-size: 14px;
+  line-height: 1.25;
+
+  white-space: normal;
+}
+
+/* Keep the title inside the screen */
+#lbstrbox h1,
+#lbstrbox h2,
+#lbstrbox .title,
+.lbstrbox h1,
+.lbstrbox h2,
+.lbstrbox .title {
+  max-width: 100%;
+  margin: 0;
+  padding: 12px 8px 8px;
+
+  box-sizing: border-box;
+  overflow: hidden;
+
+  font-size: clamp(16px, 5vw, 28px);
+  line-height: 1.1;
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: clip;
+}
+
+/* Keep generated text from breaking the layout */
+#lbstrbox pre,
+#lbstrbox .ascii,
+#lbstrbox .screen-text,
+.lbstrbox pre,
+.lbstrbox .ascii,
+.lbstrbox .screen-text {
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Keep the controls below the screen */
+.game-controls {
+  position: relative;
+  z-index: 5;
+
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+
+  background: #000;
+}
+
+/* Responsive buttons */
+.game-controls button,
+button {
+  min-width: 92px;
+  min-height: 58px;
+  padding: 6px 10px;
+
+  box-sizing: border-box;
+  border: 2px solid #00ff22;
+  border-radius: 12px;
+
+  background: #000;
+  color: #00ff22;
+
+  font: inherit;
+  font-size: clamp(13px, 3.5vw, 20px);
+  line-height: 1.05;
+  white-space: normal;
+}
+
+/* Smaller phone screens */
+@media (max-width: 600px) {
+  #lbstrbox,
+  .lbstrbox {
+    height: 360px;
+    min-height: 360px;
+    max-height: 360px;
+    font-size: 12px;
+  }
+
+  .game-controls {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .game-controls button,
+  button {
+    flex: 1 1 calc(33.333% - 6px);
+    min-width: 0;
+    min-height: 52px;
+    font-size: 13px;
+  }
+}
+
 }
