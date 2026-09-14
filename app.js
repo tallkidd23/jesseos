@@ -308,12 +308,11 @@ function setReadySoon(delay = 800) {
 function promptPath() {
   return DIRECTORIES[currentDirectory].path;
 }
+
 function updatePrompt() {
   const promptEl = document.getElementById('prompt');
   if (!promptEl) return;
 
-  // B:\ becomes B:\>
-  // B:\WEATHER\ becomes B:\WEATHER>
   const path = promptPath().replace(/\\$/, '');
   promptEl.textContent = `${path}>`;
 }
@@ -786,16 +785,10 @@ function changeDirectory(argument) {
   }
   if (target === '\\' || target === 'B:\\' || target === 'B:') {
     currentDirectory = 'ROOT';
-    function updatePrompt() {
-  const promptEl = document.getElementById('prompt');
-  if (!promptEl) return;
-
-  // B:\ becomes B:\>
-  // B:\WEATHER\ becomes B:\WEATHER>
-  const path = promptPath().replace(/\\$/, '');
-  promptEl.textContent = `${path}>`;
-}
-
+    updatePrompt();
+    addLine('response-line', 'DIRECTORY CHANGED TO B:\\');
+    return;
+  }
   if (target === '..') {
     if (currentDirectory === 'ROOT') addLine('response-line', 'ALREADY AT B:\\ ROOT.');
     else {
@@ -811,16 +804,6 @@ function changeDirectory(argument) {
       addLine('response-line', `DIRECTORY ALREADY ACTIVE: ${normalized}`);
     } else {
       currentDirectory = normalized;
-      function updatePrompt() {
-  const promptEl = document.getElementById('prompt');
-  if (!promptEl) return;
-
-  // B:\ becomes B:\>
-  // B:\WEATHER\ becomes B:\WEATHER>
-  const path = promptPath().replace(/\\$/, '');
-  promptEl.textContent = `${path}>`;
-}
-
       updatePrompt();
       addLine('response-line', `DIRECTORY CHANGED TO ${promptPath()}`);
     }
@@ -1062,9 +1045,16 @@ function handleTouchKey(key) {
 
 function virtualKeySelector(key) {
   const aliases = {
-    Enter: '[data-key="enter"]', Backspace: '[data-key="backspace"]', Escape: '[data-key="escape"]',
-    Shift: '[data-key="shift"]', Control: '[data-key="control"]', ' ': '[data-key="space"]', Tab: '[data-key="tab"]',
-    '-': '[data-key="-"]', '=': '[data-key="+"]', ';': '[data-key=":"]',
+    Enter: '[data-key="enter"]',
+    Backspace: '[data-key="backspace"]',
+    Escape: '[data-key="escape"]',
+    Shift: '[data-key="shift"]',
+    Control: '[data-key="control"]',
+    ' ': '[data-key="space"]',
+    Tab: '[data-key="tab"]',
+    '-': '[data-key="-"]',
+    '=': '[data-key="+"]',
+    ';': '[data-key=":"]',
   };
   if (aliases[key]) return aliases[key];
   if (/^[a-zA-Z]$/.test(key)) return `[data-key="${key.toLowerCase()}"]`;
@@ -1138,23 +1128,6 @@ function initPhysicalKeyboard() {
   });
 }
 
-function updatePrompt() {
-  const promptEl = document.getElementById('prompt');
-  if (!promptEl) return;
-
-  // Build prompt from currentDirectory
-  const dirInfo = DIRECTORIES[currentDirectory];
-  if (!dirInfo) {
-    promptEl.textContent = 'B:\\>';
-    return;
-  }
-
-  // dirInfo.path is like 'B:\\' or 'B:\\WEATHER\\'
-  // We want to display as 'B:\>' or 'B:\WEATHER>'
-  let path = dirInfo.path.replace(/\\$/g, ''); // remove trailing backslashes
-  promptEl.textContent = path + '>';
-}
-
 function init() {
   transcriptEl = document.getElementById('transcript');
   inputEl = document.getElementById('input');
@@ -1174,16 +1147,6 @@ function init() {
   initTouchKeyboard();
   initPhysicalKeyboard();
   updateShiftKeys();
-  function updatePrompt() {
-  const promptEl = document.getElementById('prompt');
-  if (!promptEl) return;
-
-  // B:\ becomes B:\>
-  // B:\WEATHER\ becomes B:\WEATHER>
-  const path = promptPath().replace(/\\$/, '');
-  promptEl.textContent = `${path}>`;
-}
-
   updatePrompt();
   statusEl.textContent = 'READY';
   addLine('system-line', 'JESSEOS v0.8 // LBSTRCOMP TERMINAL ONLINE');
