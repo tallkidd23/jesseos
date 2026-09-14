@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>PlanetRunner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <style>
+    html, body {
+      margin: 0; padding: 0; height: 100%; background: #000; color: #0f0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      overflow: hidden;
+    }
+    #game {
+      display: block; width: 100vw; height: 100vh; image-rendering: pixelated;
+      background: #000;
+    }
+    #overlay {
+      position: fixed; inset: 0; pointer-events: none;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .hud-top, .hud-bottom {
+      padding: 8px 10px; text-shadow: 0 0 4px #0f0;
+    }
+    .hud-bottom { text-align: center; }
+    .controls {
+      position: fixed; bottom: 10px; left: 0; right: 0;
+      display: flex; gap: 10px; justify-content: center; pointer-events: auto;
+      opacity: 0.9;
+    }
+    .btn {
+      background: rgba(0, 40, 0, 0.7); border: 1px solid #0f0; color: #0f0;
+      padding: 10px 14px; border-radius: 6px; font-size: 14px;
+      user-select: none; touch-action: manipulation;
+    }
+    .btn:active { background: rgba(0, 80, 0, 0.9); }
+    .hidden { display: none; }
+    @media (min-width: 900px) {
+      .controls { opacity: 0.6; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="overlay">
+    <div class="hud-top" id="hudTop">PLANET RUNNER // ORBITAL NAVIGATION</div>
+    <div class="hud-bottom" id="hudBottom">W/S or ↑/↓ to fly · D to boost · A to brake · R to restart · X to quit</div>
+  </div>
+
+  <div class="controls" id="touchControls">
+    <div class="btn" data-key="brake">BRAKE (A)</div>
+    <div class="btn" data-key="up">UP (W)</div>
+    <div class="btn" data-key="down">DOWN (S)</div>
+    <div class="btn" data-key="boost">BOOST (D)</div>
+    <div class="btn" data-key="restart">RESTART (R)</div>
+    <div class="btn" data-key="quit">QUIT (X)</div>
+  </div>
+
+  <script src="planetrunner.js"></script>
+</body>
+</html>
