@@ -308,6 +308,15 @@ function setReadySoon(delay = 800) {
 function promptPath() {
   return DIRECTORIES[currentDirectory].path;
 }
+function updatePrompt() {
+  const promptEl = document.getElementById('prompt');
+  if (!promptEl) return;
+
+  // B:\ becomes B:\>
+  // B:\WEATHER\ becomes B:\WEATHER>
+  const path = promptPath().replace(/\\$/, '');
+  promptEl.textContent = `${path}>`;
+}
 
 function echoCommand(command) {
   addLine('user-line', `${promptPath()}> ${command}`);
@@ -777,10 +786,16 @@ function changeDirectory(argument) {
   }
   if (target === '\\' || target === 'B:\\' || target === 'B:') {
     currentDirectory = 'ROOT';
-    updatePrompt();
-    addLine('response-line', 'DIRECTORY CHANGED TO B:\\');
-    return;
-  }
+    function updatePrompt() {
+  const promptEl = document.getElementById('prompt');
+  if (!promptEl) return;
+
+  // B:\ becomes B:\>
+  // B:\WEATHER\ becomes B:\WEATHER>
+  const path = promptPath().replace(/\\$/, '');
+  promptEl.textContent = `${path}>`;
+}
+
   if (target === '..') {
     if (currentDirectory === 'ROOT') addLine('response-line', 'ALREADY AT B:\\ ROOT.');
     else {
@@ -796,6 +811,16 @@ function changeDirectory(argument) {
       addLine('response-line', `DIRECTORY ALREADY ACTIVE: ${normalized}`);
     } else {
       currentDirectory = normalized;
+      function updatePrompt() {
+  const promptEl = document.getElementById('prompt');
+  if (!promptEl) return;
+
+  // B:\ becomes B:\>
+  // B:\WEATHER\ becomes B:\WEATHER>
+  const path = promptPath().replace(/\\$/, '');
+  promptEl.textContent = `${path}>`;
+}
+
       updatePrompt();
       addLine('response-line', `DIRECTORY CHANGED TO ${promptPath()}`);
     }
@@ -1149,6 +1174,16 @@ function init() {
   initTouchKeyboard();
   initPhysicalKeyboard();
   updateShiftKeys();
+  function updatePrompt() {
+  const promptEl = document.getElementById('prompt');
+  if (!promptEl) return;
+
+  // B:\ becomes B:\>
+  // B:\WEATHER\ becomes B:\WEATHER>
+  const path = promptPath().replace(/\\$/, '');
+  promptEl.textContent = `${path}>`;
+}
+
   updatePrompt();
   statusEl.textContent = 'READY';
   addLine('system-line', 'JESSEOS v0.8 // LBSTRCOMP TERMINAL ONLINE');
