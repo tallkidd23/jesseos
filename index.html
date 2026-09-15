@@ -34,19 +34,27 @@
               ></section>
 
               <form id="input-form" class="input-row" autocomplete="off">
-              <span id="prompt" class="prompt">B:\&gt;</span>
-              <input
-                id="input"
-                name="input"
-                type="text"
-                inputmode="text"
-                enterkeyhint="send"
-                autocomplete="off"
-                autocapitalize="sentences"
-                spellcheck="true"
-                aria-label="JesseOS command input"
-              >
-            </form>
+                <span id="prompt" class="prompt">B:\&gt;</span>
+                <input
+                  id="input"
+                  name="input"
+                  type="text"
+                  inputmode="text"
+                  enterkeyhint="send"
+                  autocomplete="off"
+                  autocapitalize="sentences"
+                  spellcheck="true"
+                  aria-label="JesseOS command input"
+                >
+              </form>
+
+              <!-- Hidden during normal terminal use. PlanetRunner mounts here. -->
+              <section
+                id="planetrunner-mount"
+                class="planetrunner-mount"
+                hidden
+                aria-label="PlanetRunner game display"
+              ></section>
             </main>
           </div>
         </div>
@@ -136,6 +144,8 @@
     </section>
   </main>
 
+  <!-- PlanetRunner loads first so app.js can start it. -->
+  <script src="planetrunner.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
