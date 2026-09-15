@@ -9,7 +9,7 @@
   - cached weather/news results
   - touch keyboard plus physical-key animation
 
-  It adds a safe B: shell on top of that behavior. The shell does not build
+  It adds a safe B:> shell on top of that behavior. The shell does not build
   paths by blindly appending names, which prevents B:\WEATHER\WEATHER\ bugs.
 */
 
