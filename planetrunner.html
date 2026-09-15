@@ -2,58 +2,153 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>PlanetRunner</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#000000" />
+  <title>PlanetRunner // JesseOS</title>
   <style>
-    html, body {
-      margin: 0; padding: 0; height: 100%; background: #000; color: #0f0;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    :root {
+      --green: #00ff44;
+      --green-soft: #75ff8c;
+      --black: #000000;
+      --control-height: 94px;
+      --status-height: 30px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
       overflow: hidden;
+      background: var(--black);
+      color: var(--green);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
     }
+
     #game {
-      display: block; width: 100vw; height: 100vh; image-rendering: pixelated;
-      background: #000;
+      position: fixed;
+      top: 0;
+      right: 0;
+      left: 0;
+      bottom: calc(var(--control-height) + var(--status-height));
+      display: block;
+      width: 100vw;
+      height: calc(100dvh - var(--control-height) - var(--status-height));
+      background: var(--black);
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
     }
-    #overlay {
-      position: fixed; inset: 0; pointer-events: none;
-      display: flex; flex-direction: column; justify-content: space-between;
+
+    #gameStatus {
+      position: fixed;
+      right: 0;
+      bottom: var(--control-height);
+      left: 0;
+      height: var(--status-height);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 0 8px;
+      border-top: 1px solid rgba(0, 255, 68, 0.75);
+      border-bottom: 1px solid rgba(0, 255, 68, 0.75);
+      background: #001006;
+      color: var(--green-soft);
+      font-size: 11px;
+      letter-spacing: 0.03em;
+      text-align: center;
+      text-shadow: 0 0 6px var(--green);
+      white-space: nowrap;
+      z-index: 3;
     }
-    .hud-top, .hud-bottom {
-      padding: 8px 10px; text-shadow: 0 0 4px #0f0;
+
+    #touchControls {
+      position: fixed;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      height: var(--control-height);
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 5px;
+      padding: 7px 5px calc(7px + env(safe-area-inset-bottom));
+      border-top: 1px solid var(--green);
+      background: #030803;
+      box-shadow: 0 -8px 18px rgba(0, 255, 68, 0.1);
+      z-index: 4;
     }
-    .hud-bottom { text-align: center; }
-    .controls {
-      position: fixed; bottom: 10px; left: 0; right: 0;
-      display: flex; gap: 10px; justify-content: center; pointer-events: auto;
-      opacity: 0.9;
+
+    #touchControls button {
+      min-width: 0;
+      margin: 0;
+      padding: 5px 2px;
+      border: 1px solid var(--green);
+      border-radius: 7px;
+      outline: none;
+      background: linear-gradient(180deg, #003b12, #001b08);
+      color: var(--green);
+      font: 700 clamp(10px, 2.8vw, 14px) / 1.05 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      text-shadow: 0 0 7px var(--green);
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
     }
-    .btn {
-      background: rgba(0, 40, 0, 0.7); border: 1px solid #0f0; color: #0f0;
-      padding: 10px 14px; border-radius: 6px; font-size: 14px;
-      user-select: none; touch-action: manipulation;
+
+    #touchControls button small {
+      display: block;
+      margin-top: 4px;
+      color: var(--green-soft);
+      font-size: 10px;
+      font-weight: 700;
     }
-    .btn:active { background: rgba(0, 80, 0, 0.9); }
-    .hidden { display: none; }
-    @media (min-width: 900px) {
-      .controls { opacity: 0.6; }
+
+    #touchControls button:active,
+    #touchControls button.is-active {
+      background: #007728;
+      color: #ffffff;
+      box-shadow: inset 0 0 12px rgba(255, 255, 255, 0.35), 0 0 12px rgba(0, 255, 68, 0.65);
+    }
+
+    @media (min-width: 760px) {
+      :root {
+        --control-height: 82px;
+      }
+
+      #touchControls {
+        max-width: 760px;
+        margin: 0 auto;
+        padding-right: 12px;
+        padding-left: 12px;
+        border-right: 1px solid var(--green);
+        border-left: 1px solid var(--green);
+      }
+
+      #touchControls button {
+        font-size: 14px;
+      }
     }
   </style>
 </head>
 <body>
-  <canvas id="game"></canvas>
+  <canvas id="game" aria-label="PlanetRunner game"></canvas>
 
-  <div id="overlay">
-    <div class="hud-top" id="hudTop">PLANET RUNNER // ORBITAL NAVIGATION</div>
-    <div class="hud-bottom" id="hudBottom">W/S or ↑/↓ to fly · D to boost · A to brake · R to restart · X to quit</div>
+  <div id="gameStatus" role="status" aria-live="polite">
+    ORBITAL NAVIGATION ONLINE
   </div>
 
-  <div class="controls" id="touchControls">
-    <div class="btn" data-key="brake">BRAKE (A)</div>
-    <div class="btn" data-key="up">UP (W)</div>
-    <div class="btn" data-key="down">DOWN (S)</div>
-    <div class="btn" data-key="boost">BOOST (D)</div>
-    <div class="btn" data-key="restart">RESTART (R)</div>
-    <div class="btn" data-key="quit">QUIT (X)</div>
+  <div id="touchControls" aria-label="PlanetRunner touch controls">
+    <button type="button" data-key="brake" aria-label="Brake">BRAKE<small>A</small></button>
+    <button type="button" data-key="up" aria-label="Fly up">UP<small>W</small></button>
+    <button type="button" data-key="down" aria-label="Fly down">DOWN<small>S</small></button>
+    <button type="button" data-key="boost" aria-label="Boost">BOOST<small>D</small></button>
+    <button type="button" data-key="restart" aria-label="Restart game">RESTART<small>R</small></button>
+    <button type="button" data-key="quit" aria-label="Return to JesseOS">QUIT<small>X</small></button>
   </div>
 
   <script src="planetrunner.js"></script>
