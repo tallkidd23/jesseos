@@ -2,15 +2,9 @@
   JESSEOS // LBSTRCOMP
   Complete replacement app.js
 
-  This version intentionally keeps the original JesseOS functions:
-  - local language-bank dream responses
-  - on-demand weather through Open-Meteo
-  - on-demand news through GDELT
-  - cached weather/news results
-  - touch keyboard plus physical-key animation
-
-  It adds a safe B:> shell on top of that behavior. The shell does not build
-  paths by blindly appending names, which prevents B:\WEATHER\WEATHER\ bugs.
+  This version keeps JesseOS language-bank, weather, news, cache, touch keyboard,
+  and physical-key behavior. PlanetRunner now runs inside the existing LBSTRBOX
+  terminal screen and is controlled by the existing keyboard.
 */
 
 const CONFIG = {
@@ -139,6 +133,7 @@ let currentDirectory = 'ROOT';
 let commandHistory = [];
 let historyIndex = -1;
 let hardwareKeyboardMode = false;
+let planetRunnerActive = false;
 
 const DIRECTORIES = {
   ROOT: {
@@ -301,7 +296,7 @@ function addReceiverStatus(text) {
 
 function setReadySoon(delay = 800) {
   window.setTimeout(() => {
-    if (!isGenerating) statusEl.textContent = 'READY';
+    if (!isGenerating && !planetRunnerActive) statusEl.textContent = 'READY';
   }, delay);
 }
 
@@ -312,7 +307,6 @@ function promptPath() {
 function updatePrompt() {
   const promptEl = document.getElementById('prompt');
   if (!promptEl) return;
-
   const path = promptPath().replace(/\\$/, '');
   promptEl.textContent = `${path}>`;
 }
@@ -348,17 +342,10 @@ function cancelActiveRequest() {
 async function fetchJson(url, signal) {
   const response = await fetch(url, {
     signal,
-    headers: {
-      Accept: 'application/json',
-    },
+    headers: { Accept: 'application/json' },
   });
-
   const raw = await response.text();
-
-  if (!response.ok) {
-    throw new Error(`HTTP_${response.status}: ${raw.slice(0, 160)}`);
-  }
-
+  if (!response.ok) throw new Error(`HTTP_${response.status}: ${raw.slice(0, 160)}`);
   try {
     return JSON.parse(raw);
   } catch {
@@ -483,9 +470,13 @@ async function fetchWeatherForCity(cityQuery, signal) {
   if (!location) throw new Error('CITY_NOT_FOUND');
   const forecastUrl = new URL('https://api.open-meteo.com/v1/forecast');
   forecastUrl.search = new URLSearchParams({
-    latitude: String(location.latitude), longitude: String(location.longitude),
+    latitude: String(location.latitude),
+    longitude: String(location.longitude),
     current: 'temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m',
-    temperature_unit: 'celsius', wind_speed_unit: 'kmh', precipitation_unit: 'mm', timezone: 'auto',
+    temperature_unit: 'celsius',
+    wind_speed_unit: 'kmh',
+    precipitation_unit: 'mm',
+    timezone: 'auto',
   });
   const weather = await fetchJson(forecastUrl, signal);
   if (!weather.current) throw new Error('WEATHER_UNAVAILABLE');
@@ -630,7 +621,6 @@ function normaliseNewsArticles(payload) {
 
 async function fetchNews(query, signal) {
   const endpoint = new URL('https://api.gdeltproject.org/api/v2/doc/doc');
-
   endpoint.search = new URLSearchParams({
     query,
     mode: 'artlist',
@@ -639,29 +629,19 @@ async function fetchNews(query, signal) {
     timespan: '24h',
     sort: 'datedesc',
   });
-
   try {
     const payload = await fetchJson(endpoint, signal);
     const articles = normaliseNewsArticles(payload);
-
-    if (!articles.length) {
-      throw new Error('NO_NEWS_RESULTS');
-    }
-
+    if (!articles.length) throw new Error('NO_NEWS_RESULTS');
     return articles;
   } catch (error) {
-    if (error.name === 'AbortError') {
-      throw error;
-    }
-
+    if (error.name === 'AbortError') throw error;
     if (/429|one every 5 seconds|rate/i.test(error.message)) {
       throw new Error('RATE_LIMITED: WAIT 5 SECONDS BEFORE TRYING NEWS AGAIN.');
     }
-
     throw error;
   }
 }
-
 
 function renderNewsCard(label, articles) {
   const card = document.createElement('section');
@@ -723,13 +703,9 @@ async function runNewsCommand(label, query) {
     if (error.name === 'AbortError') return;
     statusEl.textContent = 'SIGNAL LOST';
     const newsErrorText = error.message === 'NO_NEWS_RESULTS'
-  ? `NEWS RECEIVER // NO CLEAR SIGNALS FOR ${cleanLabel}.
-TRY: TOPIC.EXE <WORDS>`
-  : `NEWS RECEIVER // ${error.message}
-TRY AGAIN AFTER A SHORT PAUSE.`;
-
-addBlock('response-line', newsErrorText);
-
+      ? `NEWS RECEIVER // NO CLEAR SIGNALS FOR ${cleanLabel}.\nTRY: TOPIC.EXE <WORDS>`
+      : `NEWS RECEIVER // ${error.message}\nTRY AGAIN AFTER A SHORT PAUSE.`;
+    addBlock('response-line', newsErrorText);
   } finally {
     if (activeRequestController === controller) activeRequestController = null;
     setReadySoon();
@@ -772,6 +748,11 @@ function helpText() {
     'TOPIC.EXE <WORDS>         CUSTOM NEWS SIGNAL',
     'OPEN.EXE <NUMBER>         OPEN STORED SOURCE',
     '',
+    'B:\\GAMES\\',
+    'PLANETRUNNER.EXE          ORBITAL NAVIGATION',
+    '                            W/S FLY · A BRAKE · D BOOST',
+    '                            R RESTART · X OR ESC EXIT',
+    '',
     'COMPATIBILITY: /HELP, /CITY, /HEADLINES, /NEWS, /TOPIC, /OPEN',
   ].join('\n');
 }
@@ -786,6 +767,7 @@ function statusText() {
     'MEMORY: LOCAL LANGUAGE BANKS LOADED',
     'WEATHER: ON-DEMAND RECEIVER READY',
     'NEWS: ON-DEMAND RECEIVER READY',
+    'GAMES: PLANETRUNNER RECEIVER READY',
     'DISPLAY: CRT PHOSPHOR GREEN',
   ].join('\n');
 }
@@ -810,7 +792,7 @@ function fileText(fileName) {
       : 'THIS DIRECTORY HAS NO ADDITIONAL HELP FILE.',
     'README.TXT': currentDirectory === 'BOARD'
       ? 'BOARD // LOCAL MESSAGE ARCHIVE\n\nTHE BOARD IS QUIET FOR NOW.\nRUN LISTEN.EXE TO OPEN THE DREAM CHANNEL.'
-      : 'PROGRAM DIRECTORY\n\nPLANETRUNNER.EXE\nORBITAL NAVIGATION MODULE NOT YET INSTALLED.',
+      : 'PROGRAM DIRECTORY\n\nPLANETRUNNER.EXE\nORBITAL NAVIGATION PROGRAM.\nW/S FLY · A BRAKE · D BOOST · R RESTART · X EXIT.',
   };
   return files[name] || null;
 }
@@ -847,9 +829,8 @@ function changeDirectory(argument) {
   }
   const normalized = target.replace(/^B:\\/, '').replace(/\\/g, '');
   if (['WEATHER', 'NEWS', 'BOARD', 'GAMES'].includes(normalized)) {
-    if (currentDirectory === normalized) {
-      addLine('response-line', `DIRECTORY ALREADY ACTIVE: ${normalized}`);
-    } else {
+    if (currentDirectory === normalized) addLine('response-line', `DIRECTORY ALREADY ACTIVE: ${normalized}`);
+    else {
       currentDirectory = normalized;
       updatePrompt();
       addLine('response-line', `DIRECTORY CHANGED TO ${promptPath()}`);
@@ -857,6 +838,72 @@ function changeDirectory(argument) {
     return;
   }
   addLine('response-line', `DIRECTORY NOT FOUND: ${argument}`);
+}
+
+function startPlanetRunner() {
+  const shell = document.querySelector('.terminal-shell');
+  const keyboard = document.querySelector('.keyboard');
+  const mount = document.getElementById('planetrunner-mount');
+
+  if (planetRunnerActive) return;
+  if (!shell || !keyboard || !mount || !window.PlanetRunner) {
+    addBlock('response-line', 'PLANETRUNNER LOAD FAILED.\nCHECK planetrunner.js AND THE IN-TERMINAL MOUNT.');
+    return;
+  }
+
+  cancelActiveRequest();
+  planetRunnerActive = true;
+  shell.classList.add('game-active');
+  keyboard.classList.add('game-active');
+  mount.hidden = false;
+  inputEl.disabled = true;
+  statusEl.textContent = 'PLANETRUNNER';
+
+  try {
+    window.PlanetRunner.start();
+  } catch (error) {
+    console.error('PlanetRunner startup error:', error);
+    stopPlanetRunner(true);
+    addBlock('response-line', `PLANETRUNNER LOAD FAILED.\n${error.message || 'UNKNOWN GAME ERROR'}`);
+  }
+}
+
+function stopPlanetRunner(failed = false) {
+  const shell = document.querySelector('.terminal-shell');
+  const keyboard = document.querySelector('.keyboard');
+  const mount = document.getElementById('planetrunner-mount');
+
+  try {
+    window.PlanetRunner?.stop();
+  } catch (error) {
+    console.error('PlanetRunner shutdown error:', error);
+  }
+
+  planetRunnerActive = false;
+  shell?.classList.remove('game-active');
+  keyboard?.classList.remove('game-active');
+  if (mount) {
+    mount.hidden = true;
+    mount.innerHTML = '';
+  }
+
+  inputEl.disabled = false;
+  if (!hardwareKeyboardMode) inputEl.setAttribute('readonly', 'readonly');
+  updatePrompt();
+  statusEl.textContent = 'READY';
+  if (!failed) addLine('system-line', 'PLANETRUNNER CLOSED. B:\\GAMES> READY.');
+}
+
+function routePlanetRunnerVirtualKey(key) {
+  const result = window.PlanetRunner?.handleVirtualKey(key);
+  if (result === 'exit') stopPlanetRunner();
+  return result;
+}
+
+function routePlanetRunnerPhysicalKey(key, pressed) {
+  const result = window.PlanetRunner?.handlePhysicalKey(key, pressed);
+  if (result === 'exit') stopPlanetRunner();
+  return result;
 }
 
 async function runExecutable(executable, args) {
@@ -910,13 +957,9 @@ async function runExecutable(executable, args) {
     return;
   }
   if (currentDirectory === 'GAMES' && (exe === 'PLANETRUNNER.EXE' || exe === 'PLANETRUNNER')) {
-  addBlock('response-line', 'PLANETRUNNER // ORBITAL NAVIGATION ONLINE\nLOADING TERRAIN GENERATOR...');
-  window.setTimeout(() => {
-    window.location.href = './planetrunner.html';
-  }, 650);
-  return;
-}
-
+    startPlanetRunner();
+    return;
+  }
   addLine('response-line', `'${executable}' IS NOT RECOGNIZED IN ${promptPath()}`);
 }
 
@@ -1007,7 +1050,7 @@ async function processShellCommand(command) {
 async function submitCurrentCommand(event) {
   if (event) event.preventDefault();
   const command = getInputValue().trim();
-  if (!command || isGenerating) return;
+  if (!command || isGenerating || planetRunnerActive) return;
   isGenerating = true;
   inputEl.disabled = true;
   statusEl.textContent = 'PROCESSING...';
@@ -1024,9 +1067,11 @@ async function submitCurrentCommand(event) {
     addLine('response-line', 'SYSTEM ERROR: THE LOCAL DREAM ENGINE LOST ITS THREAD. RELOAD AND TRY AGAIN.');
   } finally {
     isGenerating = false;
-    inputEl.disabled = false;
-    if (!hardwareKeyboardMode) inputEl.setAttribute('readonly', 'readonly');
-    if (statusEl.textContent !== 'READY') setReadySoon();
+    if (!planetRunnerActive) {
+      inputEl.disabled = false;
+      if (!hardwareKeyboardMode) inputEl.setAttribute('readonly', 'readonly');
+      if (statusEl.textContent !== 'READY') setReadySoon();
+    }
   }
 }
 
@@ -1041,22 +1086,26 @@ function insertAtCaret(text) {
   const value = inputEl.value;
   const start = inputEl.selectionStart ?? value.length;
   const end = inputEl.selectionEnd ?? value.length;
-  const next = `${value.slice(0, start)}${text}${value.slice(end)}`;
-  setInputValue(next, start + text.length);
+  setInputValue(`${value.slice(0, start)}${text}${value.slice(end)}`, start + text.length);
 }
 
 function deleteAtCaret() {
   const value = inputEl.value;
   const start = inputEl.selectionStart ?? value.length;
   const end = inputEl.selectionEnd ?? value.length;
-  if (start !== end) {
-    setInputValue(`${value.slice(0, start)}${value.slice(end)}`, start);
-  } else if (start > 0) {
-    setInputValue(`${value.slice(0, start - 1)}${value.slice(end)}`, start - 1);
-  }
+  if (start !== end) setInputValue(`${value.slice(0, start)}${value.slice(end)}`, start);
+  else if (start > 0) setInputValue(`${value.slice(0, start - 1)}${value.slice(end)}`, start - 1);
 }
 
 function handleTouchKey(key) {
+  if (planetRunnerActive) {
+    if (key === 'stop') {
+      stopPlanetRunner();
+      return;
+    }
+    routePlanetRunnerVirtualKey(key);
+    return;
+  }
   if (isGenerating || inputEl.disabled) return;
   if (key === 'enter') {
     submitCurrentCommand();
@@ -1147,6 +1196,14 @@ function initTouchKeyboard() {
 function initPhysicalKeyboard() {
   window.addEventListener('keydown', event => {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+    if (planetRunnerActive) {
+      event.preventDefault();
+      setVirtualKeyPressed(event.key, true);
+      routePlanetRunnerPhysicalKey(event.key, true);
+      return;
+    }
+
     activateHardwareKeyboard();
     setVirtualKeyPressed(event.key, true);
     if (event.key === 'Enter') {
@@ -1173,7 +1230,12 @@ function initPhysicalKeyboard() {
       }
     }
   });
-  window.addEventListener('keyup', event => setVirtualKeyPressed(event.key, false));
+
+  window.addEventListener('keyup', event => {
+    setVirtualKeyPressed(event.key, false);
+    if (planetRunnerActive) routePlanetRunnerPhysicalKey(event.key, false);
+  });
+
   window.addEventListener('blur', () => {
     document.querySelectorAll('.keyboard .is-pressed').forEach(button => button.classList.remove('is-pressed'));
   });
