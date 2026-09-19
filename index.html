@@ -1,466 +1,141 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#05070b">
-<title>Tallkidd — Commodore 64</title>
-
-<style>
-@font-face {
-  font-family: C64Pro;
-  src: url("https://raw.githubusercontent.com/tallkidd23/JesseOS/main/C64_Pro-STYLE.woff2") format("woff2");
-  font-display: swap;
-}
-
-@font-face {
-  font-family: KrazyNights;
-  src: url("assets/KRAZYNIGHTS.TTF") format("truetype");
-  font-display: swap;
-}
-
-:root {
-  --c64-blue: #2a4a7f;
-  --c64-glow: rgba(44, 88, 157, 0.34);
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  margin: 0;
-  min-height: 100%;
-  background: #05070b;
-}
-
-body {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  overflow-x: hidden;
-}
-
-.scene {
-  position: relative;
-  width: min(100vw, 1024px);
-  aspect-ratio: 1;
-  background: url("assets/C64.PNG") center / contain no-repeat;
-}
-
-/* 
-  Perfect CRT Alignment:
-  top: 42.6%, height: 17.9% with 0.45% top padding.
-*/
-.crt {
-  position: absolute;
-  left: 42.225%;
-  top: 42.6%;
-  width: 26.2%;
-  height: 17.9%;
-  padding: 0.45% 1.15% 0.5% 1.15%;
-  overflow: hidden;
-  isolation: isolate;
-  cursor: text;
-  color: var(--c64-blue);
-  font-family: C64Pro, "Courier New", monospace;
-  font-size: clamp(3px, 0.47vw, 5px);
-  line-height: 1.12;
-  text-shadow: 0 0 1px var(--c64-glow);
-  border-radius: 9% 9% 11% 11% / 7% 7% 9% 9%;
-}
-
-.crt::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(13, 39, 98, 0.06) 0,
-    rgba(13, 39, 98, 0.06) 1px,
-    transparent 1px,
-    transparent 3px
-  );
-}
-
-/* 
-  Pure inline document flow: 
-  The cursor is rendered directly inside the text buffer at the end of the line.
-*/
-.terminal {
-  width: 100%;
-  height: 100%;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
-  white-space: pre-wrap;
-  word-break: break-all;
-  margin: 0;
-  padding: 0;
-  text-align: left;
-}
-
-.terminal::-webkit-scrollbar {
-  display: none;
-}
-
-.cursor {
-  display: inline-block;
-  width: 0.65em;
-  height: 0.95em;
-  vertical-align: -0.05em;
-  background: var(--c64-blue);
-  animation: blink 1s steps(1, end) infinite;
-}
-
-@keyframes blink {
-  50% {
-    opacity: 0;
-  }
-}
-
-.mobile-input {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
-  left: 0;
-  top: 0;
-  border: 0;
-}
-
-/* Desktop keyboard press overlay */
-.keys {
-  position: absolute;
-  left: 30%;
-  top: 71.15%;
-  width: 39.7%;
-  height: 7.7%;
-  display: grid;
-  grid-template-rows: repeat(4, 1fr);
-  gap: 4%;
-  padding: 0.2% 0.5%;
-  pointer-events: none;
-}
-
-.key-row {
-  display: grid;
-  grid-template-columns: repeat(15, 1fr);
-  gap: 1.8%;
-}
-
-.key {
-  border-radius: 18%;
-  transition: background 0.055s, transform 0.055s;
-}
-
-.key.down {
-  background: rgba(255, 255, 255, 0.38);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7);
-  transform: translateY(1px);
-}
-
-/* Carved desk text */
-.carved {
-  position: absolute;
-  left: 18%;
-  top: 95.9%;
-  width: 64%;
-  height: 3%;
-  color: rgba(78, 45, 18, 0.86);
-  font-family: KrazyNights, Georgia, serif;
-  font-size: clamp(14px, 1.9vw, 22px);
-  font-weight: 400;
-  line-height: 1;
-  text-align: center;
-  letter-spacing: 0.025em;
-  transform: perspective(260px) rotateX(5deg) rotateZ(-0.35deg);
-  pointer-events: none;
-  white-space: nowrap;
-  filter: contrast(1.1);
-}
-
-.carved span {
-  display: inline-block;
-  padding: 0.08em 0.36em 0.05em;
-  text-shadow:
-    -0.8px -0.7px 0 rgba(35, 16, 7, 0.55),
-    0.75px 0.8px 0 rgba(242, 184, 108, 0.48),
-    0 1.5px 1.5px rgba(28, 12, 5, 0.28);
-}
-
-@media (max-width: 700px) {
-  body {
-    place-items: start center;
-  }
-
-  .scene {
-    width: 100vw;
-    margin-top: 5vh;
-  }
-
-  .crt {
-    font-size: clamp(3px, 1.12vw, 5px);
-  }
-
-  .carved {
-    top: 95.9%;
-    font-size: clamp(12px, 3.6vw, 18px);
-  }
-
-  .keys {
-    display: none;
-  }
-}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#180508">
+  <meta name="description" content="JesseOS — a local, offline-first dream terminal.">
+  <title>JesseOS v0.6 — LBSTRCOMP</title>
+  <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-<main class="scene" aria-label="Interactive Commodore 64 desk">
+  <main class="room" aria-label="JesseOS LBSTRCOMP workstation">
+    <div class="wall-glow" aria-hidden="true"></div>
 
-  <section class="crt" id="crt" aria-label="Commodore 64 terminal" tabindex="0">
-    <div class="terminal" id="terminal"></div>
+    <section class="desk">
+      <section class="monitor" aria-label="LBSTRCOMP monitor">
+        <div class="monitor-vent" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
 
-    <input
-      id="mobileInput"
-      class="mobile-input"
-      autocomplete="off"
-      autocapitalize="characters"
-      spellcheck="false"
-      inputmode="text"
-      enterkeyhint="done"
-      aria-label="C64 command input"
-    >
-  </section>
+        <div class="screen-bezel">
+          <div class="screen-glass">
+            <main class="terminal-shell" aria-label="JesseOS terminal">
+              <header class="terminal-header">
+                <span>JESSEOS v0.6</span>
+                <span id="status" aria-live="polite">BOOTING...</span>
+              </header>
 
-  <div class="keys" id="keys" aria-hidden="true"></div>
+              <section
+                id="transcript"
+                class="transcript"
+                aria-live="polite"
+                aria-label="Terminal output"
+              ></section>
 
-  <div class="carved" aria-hidden="true">
-    <span>TAP SCREEN · LOAD "NAME",8,1 · RUN</span>
-  </div>
-</main>
+              <form id="input-form" class="input-row" autocomplete="off">
+              <span id="prompt" class="prompt">B:\&gt;</span>
+              <input
+                id="input"
+                name="input"
+                type="text"
+                inputmode="text"
+                enterkeyhint="send"
+                autocomplete="off"
+                autocapitalize="sentences"
+                spellcheck="true"
+                aria-label="JesseOS command input"
+              >
+            </form>
+            </main>
+          </div>
+        </div>
 
-<script>
-const programs = {
-  JESSEOS: "https://jesseos.tallkidd.com",
-  PAREIDOLIA: "https://pareidolia.tallkidd.com",
-  CCTV: "https://cctv.tallkidd.com",
-  PALUDARIUM: "https://paludarium.tallkidd.com"
-};
+        <footer class="monitor-lower-bezel">
+          <span class="brand">LBSTRCOMP</span>
 
-const crt = document.getElementById("crt");
-const terminal = document.getElementById("terminal");
-const mobile = document.getElementById("mobileInput");
-const keys = document.getElementById("keys");
+          <span class="power-cluster" aria-label="Power on">
+            <span class="power-led" aria-hidden="true"></span>
+            <span class="power-label">POWER</span>
+          </span>
+        </footer>
 
-let historyText = "";
-let buffer = "";
-let loaded = null;
-let ready = false;
+        <div class="monitor-foot" aria-hidden="true"></div>
+      </section>
 
-function render() {
-  let outputHtml = historyText;
-  if (ready) {
-    outputHtml += buffer;
-    outputHtml += '<span class="cursor" aria-hidden="true"></span>';
-  }
-  terminal.innerHTML = outputHtml;
-  terminal.scrollTop = terminal.scrollHeight;
-}
+      <section class="keyboard" aria-label="LBSTRCOMP touch keyboard">
+        <div class="key-row key-row-numbers">
+          <button class="key key-red key-action" type="button" data-key="escape" aria-label="Escape">ESC</button>
+          <button class="key" type="button" data-key="1">1</button>
+          <button class="key" type="button" data-key="2">2</button>
+          <button class="key" type="button" data-key="3">3</button>
+          <button class="key" type="button" data-key="4">4</button>
+          <button class="key" type="button" data-key="5">5</button>
+          <button class="key" type="button" data-key="6">6</button>
+          <button class="key" type="button" data-key="7">7</button>
+          <button class="key" type="button" data-key="8">8</button>
+          <button class="key" type="button" data-key="9">9</button>
+          <button class="key" type="button" data-key="0">0</button>
+          <button class="key key-delete key-action" type="button" data-key="backspace" aria-label="Delete one character">DEL</button>
+        </div>
 
-function appendLine(text = "") {
-  historyText += text + "\n";
-  render();
-}
+        <div class="key-row key-row-letters">
+          <button class="key key-tab key-action" type="button" data-key="tab">TAB</button>
+          <button class="key" type="button" data-key="q">Q</button>
+          <button class="key" type="button" data-key="w">W</button>
+          <button class="key" type="button" data-key="e">E</button>
+          <button class="key" type="button" data-key="r">R</button>
+          <button class="key" type="button" data-key="t">T</button>
+          <button class="key" type="button" data-key="y">Y</button>
+          <button class="key" type="button" data-key="u">U</button>
+          <button class="key" type="button" data-key="i">I</button>
+          <button class="key" type="button" data-key="o">O</button>
+          <button class="key" type="button" data-key="p">P</button>
+          <button class="key" type="button" data-key="+">+</button>
+        </div>
 
-function directory() {
-  appendLine('0 "TALLKIDD DISK" 00 2A');
-  appendLine('10 "JESSEOS" PRG');
-  appendLine('20 "PAREIDOLIA" PRG');
-  appendLine('30 "CCTV" PRG');
-  appendLine('40 "PALUDARIUM" PRG');
-  appendLine("38911 BLOCKS FREE.");
-}
+        <div class="key-row key-row-letters">
+          <button class="key key-ctrl key-action" type="button" data-key="control">CTRL</button>
+          <button class="key" type="button" data-key="a">A</button>
+          <button class="key" type="button" data-key="s">S</button>
+          <button class="key" type="button" data-key="d">D</button>
+          <button class="key" type="button" data-key="f">F</button>
+          <button class="key" type="button" data-key="g">G</button>
+          <button class="key" type="button" data-key="h">H</button>
+          <button class="key" type="button" data-key="j">J</button>
+          <button class="key" type="button" data-key="k">K</button>
+          <button class="key" type="button" data-key="l">L</button>
+          <button class="key" type="button" data-key=":">:</button>
+          <button class="key key-return key-action" type="button" data-key="enter">RETURN</button>
+        </div>
 
-function boot() {
-  const intro = [
-    "**** COMMODORE 64 BASIC V2 ****",
-    "64K RAM SYSTEM 38911 BASIC BYTES FREE",
-    "",
-    "READY."
-  ];
+        <div class="key-row key-row-letters">
+          <button class="key key-shift key-action" type="button" data-key="shift" aria-label="Shift">SHIFT</button>
+          <button class="key" type="button" data-key="z">Z</button>
+          <button class="key" type="button" data-key="x">X</button>
+          <button class="key" type="button" data-key="c">C</button>
+          <button class="key" type="button" data-key="v">V</button>
+          <button class="key" type="button" data-key="b">B</button>
+          <button class="key" type="button" data-key="n">N</button>
+          <button class="key" type="button" data-key="m">M</button>
+          <button class="key" type="button" data-key=",">,</button>
+          <button class="key" type="button" data-key=".">.</button>
+          <button class="key key-shift key-action" type="button" data-key="shift" aria-label="Shift">SHIFT</button>
+        </div>
 
-  let n = 0;
-  const next = () => {
-    if (n < intro.length) {
-      appendLine(intro[n++]);
-      setTimeout(next, 175);
-    } else {
-      ready = true;
-      render();
-    }
-  };
-  next();
-}
+        <div class="key-row key-row-bottom">
+          <button class="key key-red key-small key-action" type="button" data-key="run">RUN</button>
+          <button class="key key-red key-small key-action" type="button" data-key="stop">STOP</button>
+          <button class="key key-space key-action" type="button" data-key="space">SPACE</button>
+          <button class="key key-small key-action" type="button" data-key="f1">F1</button>
+          <button class="key key-small key-action" type="button" data-key="f3">F3</button>
+          <button class="key key-small key-action" type="button" data-key="f5">F5</button>
+          <button class="key key-small key-action" type="button" data-key="/">/</button>
+        </div>
+      </section>
+    </section>
+  </main>
 
-function press(code) {
-  const key = document.querySelector(`[data-code="${code}"]`);
-  if (!key) return;
-  key.classList.add("down");
-  setTimeout(() => key.classList.remove("down"), 100);
-}
-
-function addCharacters(text) {
-  for (const char of text) {
-    if (char && char !== "\n" && char !== "\r") {
-      buffer += char.toUpperCase();
-    }
-  }
-  render();
-}
-
-function loadProgram(name) {
-  if (!(name in programs)) {
-    appendLine("?FILE NOT FOUND ERROR");
-    appendLine("READY.");
-    return;
-  }
-  loaded = name;
-  appendLine("SEARCHING FOR " + name);
-  appendLine("LOADING");
-  appendLine("READY.");
-}
-
-function execute() {
-  if (!ready) return;
-
-  const raw = buffer;
-  const cmd = raw.trim().toUpperCase();
-
-  appendLine(raw);
-  buffer = "";
-
-  if (!cmd) {
-    appendLine("READY.");
-    return;
-  }
-
-  if (
-    cmd === "DIR" ||
-    cmd === "DIRECTORY" ||
-    cmd === 'LOAD "$",8' ||
-    cmd === 'LOAD "$",8,1'
-  ) {
-    directory();
-    appendLine("READY.");
-    return;
-  }
-
-  if (cmd === "RUN") {
-    if (!loaded) {
-      appendLine("?FILE NOT FOUND ERROR");
-      appendLine("READY.");
-      return;
-    }
-    appendLine("BOOTING " + loaded + "...");
-    setTimeout(() => {
-      location.assign(programs[loaded]);
-    }, 700);
-    return;
-  }
-
-  const official = cmd.match(/^LOAD\s+["']?([A-Z0-9]+)["']?\s*(?:,\s*8\s*(?:,\s*1)?)?$/);
-  const casual = cmd.match(/^([A-Z0-9]+)(?:\s+LOAD\s*,?\s*8\s*(?:,\s*1)?)?$/);
-  const name = official ? official[1] : (casual ? casual[1] : null);
-
-  if (!name) {
-    appendLine("?SYNTAX ERROR");
-    appendLine("READY.");
-    return;
-  }
-
-  loadProgram(name);
-}
-
-document.addEventListener("keydown", (event) => {
-  press(event.code);
-  if (!ready || event.target === mobile) return;
-
-  if (event.key === "Enter") {
-    event.preventDefault();
-    execute();
-    return;
-  }
-  if (event.key === "Backspace") {
-    event.preventDefault();
-    buffer = buffer.slice(0, -1);
-    render();
-    return;
-  }
-  if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
-    event.preventDefault();
-    addCharacters(event.key);
-  }
-});
-
-crt.addEventListener("click", () => {
-  mobile.focus();
-});
-
-mobile.addEventListener("beforeinput", (event) => {
-  if (!ready) return;
-  if (event.inputType === "deleteContentBackward") {
-    event.preventDefault();
-    buffer = buffer.slice(0, -1);
-    render();
-  }
-});
-
-mobile.addEventListener("input", () => {
-  if (mobile.value) {
-    addCharacters(mobile.value);
-    mobile.value = "";
-  }
-});
-
-mobile.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    execute();
-  }
-});
-
-const codes = [
-  "F1", "F3", "F5", "F7", "F2",
-  "F4", "F6", "F8", "Escape", "Digit1",
-  "Digit2", "Digit3", "Digit4", "Digit5", "Backspace",
-  "KeyQ", "KeyW", "KeyE", "KeyR", "KeyT",
-  "KeyY", "KeyU", "KeyI", "KeyO", "KeyP",
-  "BracketLeft", "BracketRight", "Enter", "KeyA", "KeyS",
-  "KeyD", "KeyF", "KeyG", "KeyH", "KeyJ",
-  "KeyK", "KeyL", "Semicolon", "Quote", "ShiftLeft",
-  "KeyZ", "KeyX", "KeyC", "KeyV", "KeyB",
-  "KeyN", "KeyM", "Comma", "Period", "Slash",
-  "ShiftRight", "Space", "Space", "Space", "Space",
-  "Space", "Space"
-];
-
-for (let rowNumber = 0; rowNumber < 4; rowNumber++) {
-  const row = document.createElement("div");
-  row.className = "key-row";
-  for (let column = 0; column < 15; column++) {
-    const key = document.createElement("i");
-    key.className = "key";
-    key.dataset.code = codes[rowNumber * 15 + column] || "";
-    row.appendChild(key);
-  }
-  keys.appendChild(row);
-}
-
-boot();
-</script>
+  <script src="app.js"></script>
 </body>
 </html>
