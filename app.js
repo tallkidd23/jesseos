@@ -67,7 +67,7 @@ const DIRECTORIES = {
   GAMES: {
     path: 'B:\\GAMES\\',
     entries: [
-      ['PLANETRUNNER.EXE', 'EXE', 'ORBITAL NAVIGATION PROGRAM'],
+    
       ['README.TXT', 'FILE', 'PROGRAM DIRECTORY'],
     ],
   },
@@ -649,7 +649,7 @@ async function runExecutable(executable, args) {
     if (exe === 'OPEN.EXE' || exe === 'OPEN') { openNewsItem(args[0]); return; }
   }
   if (currentDirectory === 'BOARD' && (exe === 'LISTEN.EXE' || exe === 'LISTEN')) { await typeResponse(generateResponse('open the local board')); return; }
-  if (currentDirectory === 'GAMES' && (exe === 'PLANETRUNNER.EXE' || exe === 'PLANETRUNNER')) { addBlock('response-line', 'PLANETRUNNER // PROGRAM SLOT RESERVED\nORBITAL NAVIGATION MODULE NOT YET INSTALLED.\nTHE MACHINE HOLDS THE PLACE OPEN.'); return; }
+  
   addLine('response-line', `'${executable}' IS NOT RECOGNIZED IN ${promptPath()}`);
 }
 
